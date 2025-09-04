@@ -16,12 +16,15 @@ const (
 	DefaultServerHost = "localhost"
 	// DefaultLogLevel is the default log level.
 	DefaultLogLevel = "info"
+	// DefaultPostgresPort is the default PostgreSQL port.
+	DefaultPostgresPort = 5432
 )
 
 // Config represents the application configuration.
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	Log    LogConfig    `mapstructure:"log"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Log      LogConfig      `mapstructure:"log"`
+	Database DatabaseConfig `mapstructure:"database"`
 }
 
 // ServerConfig represents server configuration.
@@ -35,6 +38,17 @@ type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
 
+// DatabaseConfig represents database configuration.
+type DatabaseConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	DBName   string `mapstructure:"dbname"`
+	SSLMode  string `mapstructure:"sslmode"`
+	URL      string `mapstructure:"url"`
+}
+
 // Load loads configuration using Viper with support for multiple sources.
 func Load() (*Config, error) {
 	v := viper.New()
@@ -43,6 +57,12 @@ func Load() (*Config, error) {
 	v.SetDefault("server.port", DefaultServerPort)
 	v.SetDefault("server.host", DefaultServerHost)
 	v.SetDefault("log.level", DefaultLogLevel)
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", DefaultPostgresPort)
+	v.SetDefault("database.user", "crypto_user")
+	v.SetDefault("database.password", "crypto_password")
+	v.SetDefault("database.dbname", "crypto_checkout")
+	v.SetDefault("database.sslmode", "disable")
 
 	// Set config file name and paths
 	v.SetConfigName("config")
@@ -82,6 +102,14 @@ func NewConfig() *Config {
 		},
 		Log: LogConfig{
 			Level: DefaultLogLevel,
+		},
+		Database: DatabaseConfig{
+			Host:     "localhost",
+			Port:     DefaultPostgresPort,
+			User:     "crypto_user",
+			Password: "crypto_password",
+			DBName:   "crypto_checkout",
+			SSLMode:  "disable",
 		},
 	}
 }

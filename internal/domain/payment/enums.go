@@ -1,6 +1,8 @@
 // Package payment provides domain models for payment management in the crypto-checkout system.
 package payment
 
+import "fmt"
+
 // PaymentStatus represents the status of a payment using FSM.
 //
 //nolint:revive // Domain-specific naming convention
@@ -23,6 +25,24 @@ const (
 // String returns the string representation of the status.
 func (s PaymentStatus) String() string {
 	return string(s)
+}
+
+// ParsePaymentStatus parses a string into a PaymentStatus.
+func ParsePaymentStatus(status string) (PaymentStatus, error) {
+	switch status {
+	case StatusDetected.String():
+		return StatusDetected, nil
+	case StatusConfirming.String():
+		return StatusConfirming, nil
+	case StatusConfirmed.String():
+		return StatusConfirmed, nil
+	case StatusFailed.String():
+		return StatusFailed, nil
+	case StatusOrphaned.String():
+		return StatusOrphaned, nil
+	default:
+		return "", fmt.Errorf("invalid payment status: %s", status)
+	}
 }
 
 // IsTerminal returns true if the status is a terminal state (no further transitions possible).

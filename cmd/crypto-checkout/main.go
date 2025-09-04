@@ -9,6 +9,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
+	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/internal/pkg/config"
 )
 
@@ -25,6 +26,7 @@ func main() {
 	fx.New(
 		fx.Provide(config.NewConfigProvider),
 		fx.Provide(NewLogger),
+		database.Module,
 		fx.Invoke(StartApplication),
 	).Run()
 }
