@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  crypto-checkout:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - env.dev
+    networks:
+      - crypto-checkout-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/crypto-checkout", "-health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - crypto-checkout-network
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - redis
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-crypto_checkout}
+      - POSTGRES_USER=${POSTGRES_USER:-crypto_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-crypto_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d
+    networks:
+      - crypto-checkout-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - postgres
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  crypto-checkout-network:
+    driver: bridge

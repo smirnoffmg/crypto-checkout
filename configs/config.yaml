@@ -1,0 +1,24 @@
+# Crypto Checkout Configuration
+# This file demonstrates Viper's configuration capabilities
+
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+log:
+  level: "info"
+# Example of additional configuration sections that can be added later
+# database:
+#   host: "localhost"
+#   port: 5432
+#   name: "crypto_checkout"
+#   ssl_mode: "disable"
+#
+# redis:
+#   host: "localhost"
+#   port: 6379
+#   db: 0
+#
+# blockchain:
+#   network: "tron"
+#   usdt_contract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
