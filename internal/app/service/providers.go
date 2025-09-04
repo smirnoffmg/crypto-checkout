@@ -11,5 +11,9 @@ var Module = fx.Module("service", //nolint:gochecknoglobals // Required by Fx mo
 			NewInvoiceService,
 			fx.As(new(InvoiceService)),
 		),
+		fx.Annotate(
+			NewPaymentService,
+			fx.As(new(PaymentService)),
+		),
 	),
 )
