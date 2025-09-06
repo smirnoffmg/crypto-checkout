@@ -3,8 +3,10 @@ package web
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 )
 
@@ -66,14 +68,13 @@ func maskToken(token string) string {
 }
 
 // createAuthErrorResponse creates an authentication error response matching API.md format.
-func createAuthErrorResponse(errorType, code, message string) gin.H {
-	return gin.H{
-		"error": gin.H{
-			"type":    errorType,
-			"code":    code,
-			"message": message,
-		},
-		"request_id": generateRequestID(),
+func createAuthErrorResponse(errorType, code, message string) ErrorResponse {
+	return ErrorResponse{
+		Error:     errorType,
+		Code:      code,
+		Message:   message,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		RequestID: generateRequestID(),
 	}
 }
 
@@ -91,4 +92,105 @@ func randomString(length int) string {
 		b[i] = charset[i%len(charset)]
 	}
 	return string(b)
+}
+
+// JWTSecret is the secret key for JWT signing (in production, use environment variable)
+const JWTSecret = "test-secret"
+
+// generateAuthToken handles POST /api/v1/auth/token requests.
+// @Summary Generate JWT access token
+// @Description Generate a JWT access token using API key authentication for accessing protected endpoints
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body TokenRequest true "Token generation request"
+// @Success 200 {object} TokenResponse "JWT token generated successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request parameters"
+// @Failure 401 {object} ErrorResponse "Invalid API key"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/v1/auth/token [post]
+func (h *Handler) generateAuthToken(c *gin.Context) {
+	var req TokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.Logger.Error("Failed to bind token request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("Invalid JSON format", err))
+		return
+	}
+
+	// Validate grant type
+	if req.GrantType != "api_key" {
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("grant_type must be 'api_key'", nil))
+		return
+	}
+
+	// Validate API key format
+	if !isValidAPIToken(req.APIKey) {
+		h.Logger.Debug("Invalid API key format", zap.String("token", maskToken(req.APIKey)))
+		c.JSON(http.StatusUnauthorized, createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid API key format"))
+		return
+	}
+
+	// Validate scope
+	if len(req.Scope) == 0 {
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("scope is required and cannot be empty", nil))
+		return
+	}
+
+	// Validate expires_in
+	if req.ExpiresIn <= 0 || req.ExpiresIn > 86400 { // Max 24 hours
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("expires_in must be between 1 and 86400 seconds", nil))
+		return
+	}
+
+	// TODO: In production, validate API key against database and check permissions
+	// For now, we'll accept any valid format API key
+
+	// Generate JWT token
+	token, err := h.generateJWTToken(req.APIKey, req.Scope, req.ExpiresIn)
+	if err != nil {
+		h.Logger.Error("Failed to generate JWT token", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, createAuthErrorResponse("token_generation_error", "TOKEN_GENERATION_FAILED", "Failed to generate access token"))
+		return
+	}
+
+	response := TokenResponse{
+		AccessToken: token,
+		TokenType:   "Bearer",
+		ExpiresIn:   req.ExpiresIn,
+		Scope:       req.Scope,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// generateJWTToken creates a JWT token with the specified claims.
+func (h *Handler) generateJWTToken(apiKey string, scope []string, expiresIn int64) (string, error) {
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"grant_type": "api_key",
+		"api_key":    apiKey,
+		"scope":      scope,
+		"iat":        now.Unix(),
+		"exp":        now.Add(time.Duration(expiresIn) * time.Second).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(JWTSecret))
+}
+
+// createValidationErrorResponse creates a validation error response.
+func createValidationErrorResponse(message string, err error) ErrorResponse {
+	response := ErrorResponse{
+		Error:     "validation_error",
+		Message:   message,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if err != nil {
+		response.Details = map[string]interface{}{
+			"error": err.Error(),
+		}
+	}
+
+	return response
 }

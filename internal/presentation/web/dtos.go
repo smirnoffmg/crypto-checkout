@@ -51,6 +51,146 @@ type InvoiceItemResponse struct {
 	Total       string `json:"total"`
 }
 
+// TokenRequest represents the request payload for generating JWT tokens.
+type TokenRequest struct {
+	GrantType string   `binding:"required" json:"grant_type"`
+	APIKey    string   `binding:"required" json:"api_key"`
+	Scope     []string `binding:"required,min=1" json:"scope"`
+	ExpiresIn int64    `binding:"required,min=1,max=86400" json:"expires_in"` // 1 second to 24 hours
+}
+
+// TokenResponse represents the response payload for JWT token generation.
+type TokenResponse struct {
+	AccessToken string   `json:"access_token"`
+	TokenType   string   `json:"token_type"`
+	ExpiresIn   int64    `json:"expires_in"`
+	Scope       []string `json:"scope"`
+}
+
+// PublicInvoiceResponse represents the public invoice data for customers.
+type PublicInvoiceResponse struct {
+	ID              string                   `json:"id"`
+	Title           string                   `json:"title"`
+	Description     string                   `json:"description"`
+	Items           []InvoiceItemResponse    `json:"items"`
+	Subtotal        string                   `json:"subtotal"`
+	TaxAmount       string                   `json:"tax_amount"`
+	Total           string                   `json:"total"`
+	Currency        string                   `json:"currency"`
+	CryptoCurrency  string                   `json:"crypto_currency"`
+	USDTAmount      string                   `json:"usdt_amount"`
+	Address         string                   `json:"address"`
+	Status          string                   `json:"status"`
+	ExpiresAt       time.Time                `json:"expires_at"`
+	CreatedAt       time.Time                `json:"created_at"`
+	PaidAt          *time.Time               `json:"paid_at,omitempty"`
+	Payments        []PublicPaymentResponse  `json:"payments,omitempty"`
+	PaymentProgress *PaymentProgressResponse `json:"payment_progress,omitempty"`
+	ReturnURL       *string                  `json:"return_url,omitempty"`
+	CancelURL       *string                  `json:"cancel_url,omitempty"`
+	TimeRemaining   int64                    `json:"time_remaining,omitempty"`
+}
+
+// PublicPaymentResponse represents payment data visible to customers.
+type PublicPaymentResponse struct {
+	Amount        string     `json:"amount"`
+	Status        string     `json:"status"`
+	Confirmations int        `json:"confirmations"`
+	ConfirmedAt   *time.Time `json:"confirmed_at,omitempty"`
+}
+
+// PaymentProgressResponse represents payment progress information.
+type PaymentProgressResponse struct {
+	Received  string  `json:"received"`
+	Required  string  `json:"required"`
+	Remaining string  `json:"remaining"`
+	Percent   float64 `json:"percent"`
+}
+
+// PublicInvoiceStatusResponse represents a simple status response.
+type PublicInvoiceStatusResponse struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// ListInvoicesRequest represents the request parameters for listing invoices.
+type ListInvoicesRequest struct {
+	Page     int    `form:"page,default=1" binding:"min=1"`
+	Limit    int    `form:"limit,default=20" binding:"min=1,max=100"`
+	Status   string `form:"status"`
+	Merchant string `form:"merchant"`
+}
+
+// ListInvoicesResponse represents the response for listing invoices.
+type ListInvoicesResponse struct {
+	Invoices []CreateInvoiceResponse `json:"invoices"`
+	Total    int                     `json:"total"`
+	Page     int                     `json:"page"`
+	Limit    int                     `json:"limit"`
+	Pages    int                     `json:"pages"`
+}
+
+// CancelInvoiceRequest represents the request payload for cancelling an invoice.
+type CancelInvoiceRequest struct {
+	Reason string `binding:"required" json:"reason"`
+}
+
+// CancelInvoiceResponse represents the response payload for cancelling an invoice.
+type CancelInvoiceResponse struct {
+	ID          string    `json:"id"`
+	Status      string    `json:"status"`
+	Reason      string    `json:"reason"`
+	CancelledAt time.Time `json:"cancelled_at"`
+}
+
+// AnalyticsRequest represents the request parameters for analytics.
+type AnalyticsRequest struct {
+	StartDate string `form:"start_date"`
+	EndDate   string `form:"end_date"`
+	Merchant  string `form:"merchant"`
+}
+
+// AnalyticsResponse represents the response for analytics data.
+type AnalyticsResponse struct {
+	Summary  AnalyticsSummary  `json:"summary"`
+	Revenue  AnalyticsRevenue  `json:"revenue"`
+	Invoices AnalyticsInvoices `json:"invoices"`
+	Payments AnalyticsPayments `json:"payments"`
+}
+
+// AnalyticsSummary represents summary analytics data.
+type AnalyticsSummary struct {
+	TotalInvoices     int     `json:"total_invoices"`
+	TotalRevenue      string  `json:"total_revenue"`
+	TotalPayments     int     `json:"total_payments"`
+	SuccessRate       float64 `json:"success_rate"`
+	AverageAmount     string  `json:"average_amount"`
+	PendingInvoices   int     `json:"pending_invoices"`
+	CompletedInvoices int     `json:"completed_invoices"`
+	CancelledInvoices int     `json:"cancelled_invoices"`
+}
+
+// AnalyticsRevenue represents revenue analytics data.
+type AnalyticsRevenue struct {
+	Total     string `json:"total"`
+	ThisMonth string `json:"this_month"`
+	LastMonth string `json:"last_month"`
+	Growth    string `json:"growth"`
+}
+
+// AnalyticsInvoices represents invoice analytics data.
+type AnalyticsInvoices struct {
+	ByStatus map[string]int `json:"by_status"`
+	ByMonth  map[string]int `json:"by_month"`
+}
+
+// AnalyticsPayments represents payment analytics data.
+type AnalyticsPayments struct {
+	ByStatus map[string]int `json:"by_status"`
+	ByMonth  map[string]int `json:"by_month"`
+}
+
 // ErrorResponse represents an error response payload.
 type ErrorResponse struct {
 	Error     string                 `json:"error"`
@@ -67,9 +207,9 @@ func ToCreateInvoiceResponse(inv *invoice.Invoice) CreateInvoiceResponse {
 	for i, item := range inv.Items() {
 		items[i] = InvoiceItemResponse{
 			Description: item.Description(),
-			UnitPrice:   item.UnitPrice().String(),
+			UnitPrice:   item.UnitPrice().Amount().String(),
 			Quantity:    item.Quantity().String(),
-			Total:       item.CalculateTotal().String(),
+			Total:       item.TotalPrice().Amount().String(),
 		}
 	}
 
@@ -88,21 +228,27 @@ func ToCreateInvoiceResponse(inv *invoice.Invoice) CreateInvoiceResponse {
 	// Construct customer URL
 	customerURL := "https://checkout.crypto-checkout.com/invoice/" + inv.ID()
 
+	// Get expiration time
+	var expiresAt time.Time
+	if exp := inv.Expiration(); exp != nil {
+		expiresAt = exp.ExpiresAt()
+	}
+
 	return CreateInvoiceResponse{
 		ID:             inv.ID(),
 		Items:          items,
-		Subtotal:       inv.CalculateSubtotal().String(),
-		TaxAmount:      inv.CalculateTax().String(),
-		Total:          inv.CalculateTotal().String(),
-		TaxRate:        inv.TaxRate().StringFixed(TaxRateDecimals),
+		Subtotal:       inv.Pricing().Subtotal().Amount().String(),
+		TaxAmount:      inv.Pricing().Tax().Amount().String(),
+		Total:          inv.Pricing().Total().Amount().String(),
+		TaxRate:        inv.Pricing().Tax().Amount().String(),
 		Status:         inv.Status().String(),
 		PaymentAddress: paymentAddress,
 		InvoiceURL:     "/api/v1/invoices/" + inv.ID(),
 		CreatedAt:      inv.CreatedAt(),
 		// API.md required fields
-		USDTAmount:  inv.CalculateTotal().String(), // 1:1 USD to USDT for now
+		USDTAmount:  inv.Pricing().Total().Amount().String(), // 1:1 USD to USDT for now
 		Address:     address,
 		CustomerURL: customerURL,
-		ExpiresAt:   inv.ExpiresAt(),
+		ExpiresAt:   expiresAt,
 	}
 }

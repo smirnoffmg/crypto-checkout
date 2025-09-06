@@ -16,7 +16,7 @@ type Repository interface {
 	FindByTransactionHash(ctx context.Context, hash *TransactionHash) (*Payment, error)
 
 	// FindByAddress retrieves all payments for a given address.
-	FindByAddress(ctx context.Context, address *Address) ([]*Payment, error)
+	FindByAddress(ctx context.Context, address *PaymentAddress) ([]*Payment, error)
 
 	// FindByStatus retrieves all payments with the given status.
 	FindByStatus(ctx context.Context, status PaymentStatus) ([]*Payment, error)

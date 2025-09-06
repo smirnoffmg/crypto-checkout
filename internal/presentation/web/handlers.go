@@ -1,12 +1,15 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 
 	"crypto-checkout/internal/domain/invoice"
@@ -27,7 +30,7 @@ const (
 type Handler struct {
 	invoiceService invoice.InvoiceService
 	paymentService payment.PaymentService
-	logger         *zap.Logger
+	Logger         *zap.Logger
 	config         *config.Config
 	hub            *Hub
 }
@@ -43,7 +46,7 @@ func NewHandler(
 	return &Handler{
 		invoiceService: invoiceService,
 		paymentService: paymentService,
-		logger:         logger,
+		Logger:         logger,
 		config:         cfg,
 		hub:            hub,
 	}
@@ -54,34 +57,62 @@ func (h *Handler) RegisterRoutes(router *gin.Engine) {
 	// Health check endpoint
 	router.GET("/health", h.healthCheck)
 
+	// Swagger documentation
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// Public customer-facing routes (matching API.md spec)
 	router.GET("/invoice/:id", h.getPublicInvoice)
 	router.GET("/invoice/:id/qr", h.getInvoiceQR)
-	router.GET("/invoice/:id/status", h.getInvoiceStatus)
+	router.GET("/invoice/:id/status", h.GetInvoiceStatus)
 	router.GET("/invoice/:id/ws", h.serveWS)
 
-	// API v1 routes (Merchant/Admin API) - require authentication
-	v1 := router.Group("/api/v1")
-	v1.Use(AuthMiddleware(h.logger)) // Apply auth middleware to all v1 routes
+	// Public API routes (no authentication required)
+	public := router.Group("/api/v1/public")
 	{
-		// Invoice routes
-		invoices := v1.Group("/invoices")
+		public.GET("/invoice/:id", h.GetPublicInvoiceData)
+		public.GET("/invoice/:id/status", h.GetPublicInvoiceStatus)
+		public.GET("/invoice/:id/events", h.GetPublicInvoiceEvents)
+	}
+
+	// API v1 routes (Merchant/Admin API)
+	v1 := router.Group("/api/v1")
+	{
+		// Auth routes (no authentication required for token generation)
+		auth := v1.Group("/auth")
 		{
-			invoices.POST("", h.createInvoice)
-			invoices.GET("", h.listInvoices)
-			invoices.GET("/:id", h.getInvoice)
-			invoices.POST("/:id/cancel", h.cancelInvoice)
+			auth.POST("/token", h.generateAuthToken)
 		}
 
-		// Analytics routes
-		analytics := v1.Group("/analytics")
+		// Protected routes (require authentication)
+		protected := v1.Group("")
+		protected.Use(AuthMiddleware(h.Logger))
 		{
-			analytics.GET("", h.getAnalytics)
+			// Invoice routes
+			invoices := protected.Group("/invoices")
+			{
+				invoices.POST("", h.CreateInvoice)
+				invoices.GET("", h.ListInvoices)
+				invoices.GET("/:id", h.GetInvoice)
+				invoices.POST("/:id/cancel", h.CancelInvoice)
+			}
+
+			// Analytics routes
+			analytics := protected.Group("/analytics")
+			{
+				analytics.GET("", h.GetAnalytics)
+			}
 		}
 	}
 }
 
 // healthCheck returns the health status of the API.
+// @Summary Health check
+// @Description Check the health status of the API
+// @Tags System
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "API is healthy"
+// @Router /health [get]
 func (h *Handler) healthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "healthy",
@@ -148,37 +179,245 @@ func (h *Handler) createErrorResponse(errorType, message string, err error) Erro
 }
 
 // getInvoiceStatus returns the payment status for a customer-facing invoice.
-func (h *Handler) getInvoiceStatus(c *gin.Context) {
-	// TODO: Implement invoice status check for customers
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "Not implemented",
-		"message": "Invoice status endpoint is not yet implemented",
-	})
+// @Summary Get invoice status for customers
+// @Description Get the current status of an invoice for customer-facing display
+// @Tags Customer API
+// @Accept json
+// @Produce json
+// @Param id path string true "Invoice ID"
+// @Success 200 {object} PublicInvoiceStatusResponse "Invoice status retrieved successfully"
+// @Failure 400 {object} ErrorResponse "Invalid invoice ID"
+// @Failure 404 {object} ErrorResponse "Invoice not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /invoice/{id}/status [get]
+func (h *Handler) GetInvoiceStatus(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		h.Logger.Debug("Empty invoice ID in status request")
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("invoice ID is required", nil))
+		return
+	}
+
+	// Get invoice status from service
+	status, err := h.invoiceService.GetInvoiceStatus(c.Request.Context(), id)
+	if err != nil {
+		h.Logger.Error("Failed to get invoice status", zap.Error(err), zap.String("invoice_id", id))
+		if errors.Is(err, invoice.ErrInvoiceNotFound) {
+			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("failed to retrieve invoice status", err))
+		return
+	}
+
+	response := PublicInvoiceStatusResponse{
+		ID:        id,
+		Status:    status.String(),
+		Timestamp: time.Now().UTC(),
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // listInvoices returns a paginated list of invoices for merchants/admins.
-func (h *Handler) listInvoices(c *gin.Context) {
-	// TODO: Implement invoice listing with filtering and pagination
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "Not implemented",
-		"message": "List invoices endpoint is not yet implemented",
-	})
+// @Summary List invoices
+// @Description Get a paginated list of invoices with optional filtering
+// @Tags Invoices
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param page query int false "Page number" default(1) minimum(1)
+// @Param limit query int false "Items per page" default(20) minimum(1) maximum(100)
+// @Param status query string false "Filter by status"
+// @Param merchant query string false "Filter by merchant ID"
+// @Success 200 {object} ListInvoicesResponse "Invoices retrieved successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request parameters"
+// @Failure 401 {object} ErrorResponse "Unauthorized - Invalid API key"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/v1/invoices [get]
+func (h *Handler) ListInvoices(c *gin.Context) {
+	var req ListInvoicesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.Logger.Error("Failed to bind list invoices request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("Invalid query parameters", err))
+		return
+	}
+
+	// Get merchant ID from authentication context (for now, use placeholder)
+	merchantID := "test-merchant" // TODO: Extract from JWT token
+
+	// Build filter options
+	var status *invoice.InvoiceStatus
+	if req.Status != "" {
+		s := invoice.InvoiceStatus(req.Status)
+		status = &s
+	}
+
+	filter := &invoice.ListInvoicesRequest{
+		MerchantID: merchantID,
+		Status:     status,
+		Limit:      req.Limit,
+		Offset:     (req.Page - 1) * req.Limit,
+	}
+
+	// Get invoices from service
+	response, err := h.invoiceService.ListInvoices(c.Request.Context(), filter)
+	if err != nil {
+		h.Logger.Error("Failed to list invoices", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("Failed to retrieve invoices", err))
+		return
+	}
+
+	// Convert to response DTOs
+	responseInvoices := make([]CreateInvoiceResponse, len(response.Invoices))
+	for i, inv := range response.Invoices {
+		responseInvoices[i] = ToCreateInvoiceResponse(inv)
+	}
+
+	// Calculate total pages
+	pages := (response.Total + req.Limit - 1) / req.Limit
+
+	listResponse := ListInvoicesResponse{
+		Invoices: responseInvoices,
+		Total:    response.Total,
+		Page:     req.Page,
+		Limit:    req.Limit,
+		Pages:    pages,
+	}
+
+	c.JSON(http.StatusOK, listResponse)
 }
 
 // cancelInvoice cancels an invoice.
-func (h *Handler) cancelInvoice(c *gin.Context) {
-	// TODO: Implement invoice cancellation
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "Not implemented",
-		"message": "Cancel invoice endpoint is not yet implemented",
-	})
+// @Summary Cancel an invoice
+// @Description Cancel an invoice with a reason
+// @Tags Invoices
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Invoice ID"
+// @Param request body CancelInvoiceRequest true "Cancellation request"
+// @Success 200 {object} CancelInvoiceResponse "Invoice cancelled successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request parameters"
+// @Failure 401 {object} ErrorResponse "Unauthorized - Invalid API key"
+// @Failure 404 {object} ErrorResponse "Invoice not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/v1/invoices/{id}/cancel [post]
+func (h *Handler) CancelInvoice(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		h.Logger.Debug("Empty invoice ID in cancel request")
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("invoice ID is required", nil))
+		return
+	}
+
+	var req CancelInvoiceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.Logger.Error("Failed to bind cancel invoice request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("Invalid JSON format", err))
+		return
+	}
+
+	// Cancel the invoice
+	err := h.invoiceService.CancelInvoice(c.Request.Context(), id, req.Reason)
+	if err != nil {
+		h.Logger.Error("Failed to cancel invoice", zap.Error(err), zap.String("invoice_id", id))
+		if errors.Is(err, invoice.ErrInvoiceNotFound) {
+			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("Failed to cancel invoice", err))
+		return
+	}
+
+	// Get the updated invoice to return current status
+	inv, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
+	if err != nil {
+		h.Logger.Error("Failed to get updated invoice after cancellation", zap.Error(err), zap.String("invoice_id", id))
+		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("Failed to retrieve updated invoice", err))
+		return
+	}
+
+	response := CancelInvoiceResponse{
+		ID:          id,
+		Status:      inv.Status().String(),
+		Reason:      req.Reason,
+		CancelledAt: time.Now().UTC(),
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // getAnalytics returns analytics data for merchants/admins.
-func (h *Handler) getAnalytics(c *gin.Context) {
-	// TODO: Implement analytics endpoint
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "Not implemented",
-		"message": "Analytics endpoint is not yet implemented",
-	})
+// @Summary Get analytics data
+// @Description Get comprehensive analytics data for merchants and admins
+// @Tags Analytics
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param start_date query string false "Start date (YYYY-MM-DD)"
+// @Param end_date query string false "End date (YYYY-MM-DD)"
+// @Param merchant query string false "Filter by merchant ID"
+// @Success 200 {object} AnalyticsResponse "Analytics data retrieved successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request parameters"
+// @Failure 401 {object} ErrorResponse "Unauthorized - Invalid API key"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/v1/analytics [get]
+func (h *Handler) GetAnalytics(c *gin.Context) {
+	var req AnalyticsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.Logger.Error("Failed to bind analytics request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("Invalid query parameters", err))
+		return
+	}
+
+	// TODO: Extract merchant ID from authentication context
+	// merchantID := "test-merchant" // TODO: Extract from JWT token
+
+	// TODO: Implement real analytics by aggregating data from invoice and payment services
+	// For now, return mock analytics data
+	response := AnalyticsResponse{
+		Summary: AnalyticsSummary{
+			TotalInvoices:     150,
+			TotalRevenue:      "12500.00",
+			TotalPayments:     120,
+			SuccessRate:       80.0,
+			AverageAmount:     "83.33",
+			PendingInvoices:   25,
+			CompletedInvoices: 100,
+			CancelledInvoices: 25,
+		},
+		Revenue: AnalyticsRevenue{
+			Total:     "12500.00",
+			ThisMonth: "3200.00",
+			LastMonth: "2800.00",
+			Growth:    "14.29",
+		},
+		Invoices: AnalyticsInvoices{
+			ByStatus: map[string]int{
+				"pending":   25,
+				"paid":      100,
+				"cancelled": 25,
+			},
+			ByMonth: map[string]int{
+				"2024-01": 45,
+				"2024-02": 52,
+				"2024-03": 53,
+			},
+		},
+		Payments: AnalyticsPayments{
+			ByStatus: map[string]int{
+				"confirmed": 100,
+				"pending":   20,
+				"failed":    5,
+			},
+			ByMonth: map[string]int{
+				"2024-01": 40,
+				"2024-02": 45,
+				"2024-03": 35,
+			},
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }

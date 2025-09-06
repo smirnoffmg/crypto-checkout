@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"crypto-checkout/internal/domain/payment"
+	"crypto-checkout/internal/domain/shared"
 
 	"gorm.io/gorm"
 )
@@ -29,8 +30,8 @@ func (r *PaymentRepository) Save(ctx context.Context, p *payment.Payment) error 
 	// Convert domain model to database model
 	model := r.domainToModel(p)
 
-	// Save payment
-	if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
+	// Save payment (GORM will handle insert/update automatically)
+	if err := r.db.WithContext(ctx).Save(model).Error; err != nil {
 		return fmt.Errorf("failed to save payment: %w", err)
 	}
 
@@ -69,7 +70,7 @@ func (r *PaymentRepository) FindByTransactionHash(
 
 	var model PaymentModel
 	err := r.db.WithContext(ctx).
-		Where("transaction_hash = ?", hash.String()).
+		Where("tx_hash = ?", hash.String()).
 		First(&model).Error
 
 	if err != nil {
@@ -83,14 +84,14 @@ func (r *PaymentRepository) FindByTransactionHash(
 }
 
 // FindByAddress retrieves all payments for a given address.
-func (r *PaymentRepository) FindByAddress(ctx context.Context, address *payment.Address) ([]*payment.Payment, error) {
+func (r *PaymentRepository) FindByAddress(ctx context.Context, address *payment.PaymentAddress) ([]*payment.Payment, error) {
 	if address == nil {
 		return nil, payment.ErrInvalidPayment
 	}
 
 	var models []PaymentModel
 	err := r.db.WithContext(ctx).
-		Where("address = ?", address.String()).
+		Where("to_address = ?", address.String()).
 		Find(&models).Error
 
 	if err != nil {
@@ -201,8 +202,17 @@ func (r *PaymentRepository) Delete(ctx context.Context, id string) error {
 		return payment.ErrInvalidPayment
 	}
 
+	// Check if payment exists first
+	exists, err := r.Exists(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to check if payment exists: %w", err)
+	}
+	if !exists {
+		return payment.ErrPaymentNotFound
+	}
+
 	// Use soft delete - GORM will handle this automatically
-	err := r.db.WithContext(ctx).Delete(&PaymentModel{}, "id = ?", id).Error
+	err = r.db.WithContext(ctx).Delete(&PaymentModel{}, "id = ?", id).Error
 	if err != nil {
 		return fmt.Errorf("failed to delete payment: %w", err)
 	}
@@ -261,47 +271,108 @@ func (r *PaymentRepository) CountByStatus(ctx context.Context) (map[payment.Paym
 
 // domainToModel converts a domain payment to a database model.
 func (r *PaymentRepository) domainToModel(p *payment.Payment) *PaymentModel {
-	return &PaymentModel{
-		ID:              p.ID(),
-		Amount:          p.Amount().String(),
-		Address:         p.Address().String(),
-		TransactionHash: p.TransactionHash().String(),
-		Confirmations:   p.Confirmations().Int(),
-		Status:          p.Status().String(),
-		CreatedAt:       p.CreatedAt(),
-		UpdatedAt:       p.UpdatedAt(),
+	model := &PaymentModel{
+		ID:                    string(p.ID()),
+		InvoiceID:             string(p.InvoiceID()),
+		Amount:                p.Amount().Amount().String(),
+		FromAddress:           p.FromAddress(),
+		ToAddress:             p.ToAddress().String(),
+		TxHash:                p.TransactionHash().String(),
+		Status:                p.Status().String(),
+		Confirmations:         p.Confirmations().Int(),
+		RequiredConfirmations: p.RequiredConfirmations(),
+		DetectedAt:            p.DetectedAt(),
+		CreatedAt:             p.CreatedAt(),
 	}
+
+	// Set optional fields
+	if p.ConfirmedAt() != nil {
+		confirmedAt := *p.ConfirmedAt()
+		model.ConfirmedAt = &confirmedAt
+	}
+	if p.BlockInfo() != nil {
+		blockNumber := p.BlockInfo().Number()
+		blockHash := p.BlockInfo().Hash()
+		model.BlockNumber = &blockNumber
+		model.BlockHash = &blockHash
+	}
+	if p.NetworkFee() != nil {
+		fee := p.NetworkFee().Fee().String()
+		model.NetworkFee = &fee
+	}
+
+	return model
 }
 
 // modelToDomain converts a database model to a domain payment.
 func (r *PaymentRepository) modelToDomain(model *PaymentModel) (*payment.Payment, error) {
-	// Parse amount
-	amount, err := payment.NewUSDTAmount(model.Amount)
+	// Create payment amount
+	amount, err := shared.NewMoneyWithCrypto(model.Amount, shared.CryptoCurrencyUSDT)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse amount: %w", err)
 	}
-
-	// Parse address
-	address, err := payment.NewPaymentAddress(model.Address)
+	paymentAmount, err := payment.NewPaymentAmount(amount, shared.CryptoCurrencyUSDT)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse address: %w", err)
+		return nil, fmt.Errorf("failed to create payment amount: %w", err)
+	}
+
+	// Parse to address
+	toAddress, err := payment.NewPaymentAddress(model.ToAddress, shared.NetworkTron)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse to address: %w", err)
 	}
 
 	// Parse transaction hash
-	transactionHash, err := payment.NewTransactionHash(model.TransactionHash)
+	transactionHash, err := payment.NewTransactionHash(model.TxHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse transaction hash: %w", err)
 	}
 
 	// Create payment
-	p, err := payment.NewPayment(model.ID, amount, address, transactionHash)
+	p, err := payment.NewPayment(
+		shared.PaymentID(model.ID),
+		shared.InvoiceID(model.InvoiceID),
+		paymentAmount,
+		model.FromAddress,
+		toAddress,
+		transactionHash,
+		model.RequiredConfirmations,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
+	// Set status from database
+	p.SetStatus(payment.PaymentStatus(model.Status))
+
 	// Update confirmations
 	if updateErr := p.UpdateConfirmations(context.Background(), model.Confirmations); updateErr != nil {
 		return nil, fmt.Errorf("failed to update confirmations: %w", updateErr)
+	}
+
+	// Set confirmed at if present
+	if model.ConfirmedAt != nil {
+		p.SetConfirmedAt(*model.ConfirmedAt)
+	}
+
+	// Set block info if present
+	if model.BlockNumber != nil && model.BlockHash != nil {
+		blockNumber := *model.BlockNumber
+		blockHash := *model.BlockHash
+		if blockErr := p.UpdateBlockInfo(blockNumber, blockHash); blockErr != nil {
+			return nil, fmt.Errorf("failed to update block info: %w", blockErr)
+		}
+	}
+
+	// Set network fee if present
+	if model.NetworkFee != nil {
+		fee, feeErr := shared.NewMoneyWithCrypto(*model.NetworkFee, shared.CryptoCurrencyUSDT)
+		if feeErr != nil {
+			return nil, fmt.Errorf("failed to parse network fee: %w", feeErr)
+		}
+		if networkFeeErr := p.UpdateNetworkFee(fee, shared.CryptoCurrencyUSDT); networkFeeErr != nil {
+			return nil, fmt.Errorf("failed to update network fee: %w", networkFeeErr)
+		}
 	}
 
 	return p, nil

@@ -1,110 +1,90 @@
 # Crypto Checkout
 
-A simple cryptocurrency payment processor for accepting USDT payments.
+Accept cryptocurrency payments with a simple API. Built for businesses that need reliable crypto payment processing.
 
 ## What it does
 
-**Create invoices** - Generate payment invoices with multiple items, prices, and tax calculations.
+**Create payment invoices** - Generate invoices with multiple items, pricing, and tax calculations through a simple API call.
 
-**Accept USDT payments** - Automatically generate unique payment addresses for each invoice and monitor incoming transactions.
+**Accept crypto payments** - Customers pay with USDT, Bitcoin, or Ethereum using QR codes or wallet transfers.
 
-**Simple payment page** - Clean, minimal interface for customers to view invoice details and make payments via QR code or copy-paste.
+**Get paid automatically** - Real-time payment detection and confirmation without manual intervention.
 
-**Real-time status** - Automatic payment confirmation and status updates without manual intervention.
+**Track everything** - Complete audit trail of all transactions and invoice activities.
 
-**Audit logging** - Optional Kafka integration for immutable audit trail of all payment events and invoice activities.
+## For businesses that need
+
+- E-commerce crypto checkout
+- Subscription payments  
+- Digital product sales
+- Service invoicing
+- Compliance and audit trails
+
+## How it works
+
+### 1. Create an invoice
+
+```bash
+curl -X POST https://api.thecryptocheckout.com/v1/invoices \
+  -H "Authorization: Bearer your_api_key" \
+  -d '{"title": "Premium Plan", "amount": 99.99}'
+```
+
+### 2. Customer pays
+
+Send customers to the payment page where they scan a QR code or copy the payment address.
+
+### 3. Get notified
+
+Receive webhook notifications when payments are confirmed.
+
+```json
+{
+  "event": "invoice.paid",
+  "invoice_id": "inv_123",
+  "amount_received": 99.99
+}
+```
 
 ## Key features
 
-- Multi-item invoices with subtotals and tax
-- Unique payment address per invoice
-- QR code generation for mobile payments
-- Automatic payment detection and confirmation
-- Invoice expiration and timeout handling
-- RESTful API for integration
-- Optional Kafka audit logging for compliance
+- **Multi-currency support** - Accept USDT, Bitcoin, and Ethereum
+- **Real-time updates** - Instant payment confirmation 
+- **Global reach** - No geographic restrictions
+- **Low fees** - Competitive transaction costs
+- **Developer friendly** - RESTful API with webhooks
+- **Hosted checkout** - Pre-built payment pages
+- **Audit compliance** - Complete transaction history
 
-## Use cases
+## 🏁 Getting started
 
-- E-commerce checkout for crypto payments
-- Service subscription payments
-- Digital product sales
-- Invoice-based business transactions
-- Regulated businesses requiring audit trails
+1. 📝 **Sign up** at [thecryptocheckout.com](https://thecryptocheckout.com)
+2. 🔑 **Get your API keys** from the dashboard
+3. 💻 **Create your first invoice** using the API
+4. 🧪 **Test payments** with small amounts
+5. 🎉 **Go live** and start accepting payments
 
-Built for businesses and developers who need reliable cryptocurrency payment processing without the complexity of traditional payment gateways.
+## 💼 Use cases
 
-## Architecture
+🛍️ **E-commerce stores** - Add crypto payments to existing checkout flows
 
-```mermaid
-graph TB
-    %% External actors
-    User[👤 User]
-    Customer[👤 Customer]
-    
-    %% API Layer
-    API[🌐 REST API<br/>- POST /invoices<br/>- GET /invoices/:id<br/>- GET /invoices/:id/status]
-    
-    %% Web Layer
-    Web[📄 Invoice Page<br/>- QR Code Display<br/>- Payment Instructions<br/>- Real-time Status]
-    QR[🔲 QR Generator]
-    
-    %% Core Services
-    PaymentService[⚙️ Payment Service<br/>- Create Invoice<br/>- Process Payment<br/>- Status Updates]
-    
-    %% Storage
-    InvoiceRepo[(📋 Invoice Repository<br/>- Invoice Data<br/>- Payment Status)]
-    
-    %% Wallet & Blockchain
-    WalletMgr[🔑 Wallet Manager<br/>- HD Derivation<br/>- Address Generation<br/>- Auto-sweep]
-    BlockchainClient[⛓️ Blockchain Client<br/>- Transaction Monitor<br/>- Payment Detection]
-    
-    %% External Systems
-    TronNetwork[🌐 Tron Network<br/>TRC-20 USDT]
-    
-    %% Optional Audit
-    AuditLogger{📊 Audit Logger<br/>Optional}
-    Kafka[(📋 Kafka<br/>Audit Events)]
-    NoopLogger[❌ Noop Logger]
-    
-    %% User flows
-    User -->|Create Invoice| API
-    Customer -->|View Invoice| Web
-    Customer -->|Make Payment| TronNetwork
-    
-    %% API flows
-    API --> PaymentService
-    Web --> API
-    Web --> QR
-    
-    %% Core service flows
-    PaymentService --> InvoiceRepo
-    PaymentService --> WalletMgr
-    PaymentService --> AuditLogger
-    
-    %% Blockchain monitoring
-    BlockchainClient -->|Poll Transactions| TronNetwork
-    BlockchainClient -->|Payment Found| PaymentService
-    
-    %% Wallet flows
-    WalletMgr -->|Generate Address| PaymentService
-    WalletMgr -->|Auto-sweep| TronNetwork
-    
-    %% Audit flows
-    AuditLogger -.->|If Enabled| Kafka
-    AuditLogger -.->|If Disabled| NoopLogger
-    
-    %% Background processes
-    PaymentService -.->|Monitor| BlockchainClient
-    
-    %% Styling
-    classDef external fill:#e1f5fe
-    classDef service fill:#f3e5f5
-    classDef storage fill:#e8f5e8
-    classDef optional fill:#fff3e0
-    
-    class User,Customer,TronNetwork external
-    class PaymentService,WalletMgr,BlockchainClient service
-    class InvoiceRepo,Kafka storage
-    class AuditLogger,NoopLogger optional
-```
+💼 **SaaS businesses** - Accept subscription payments in cryptocurrency  
+
+🎨 **Digital creators** - Sell courses, software, and digital products
+
+🔧 **Service providers** - Invoice clients with crypto payment options
+
+🌐 **Global businesses** - Accept payments from customers worldwide
+
+🥷 **Privacy services** - VPNs, secure hosting, and anonymity tools
+
+🔒 **Sensitive industries** - Adult content, gambling, and regulated markets
+
+## 🆘 Support
+
+- 📚 **Documentation** - [docs.thecryptocheckout.com](https://docs.thecryptocheckout.com)
+- 🔧 **API Reference** - [api.thecryptocheckout.com](https://api.thecryptocheckout.com)  
+- ❓ **Help Center** - [help.thecryptocheckout.com](https://help.thecryptocheckout.com)
+- 📧 **Contact Support** - [support@thecryptocheckout.com](mailto:support@thecryptocheckout.com)
+
+🚀 Start accepting crypto payments in minutes, not months.

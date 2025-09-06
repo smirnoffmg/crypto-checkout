@@ -3,177 +3,234 @@ package payment
 import (
 	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
+	"time"
 
-	"github.com/shopspring/decimal"
+	"crypto-checkout/internal/domain/shared"
 )
 
-const (
-	// USDTDecimalPlaces is the number of decimal places for USDT amounts.
-	USDTDecimalPlaces = 2
-)
+// Use shared value objects
+type TransactionHash = shared.TransactionHash
+type PaymentAddress = shared.PaymentAddress
+type ConfirmationCount = shared.ConfirmationCount
 
-// USDTAmount represents a USDT amount with precision handling.
-type USDTAmount struct {
-	value decimal.Decimal
-}
-
-// NewUSDTAmount creates a new USDTAmount from a string value.
-func NewUSDTAmount(value string) (*USDTAmount, error) {
-	if value == "" {
-		return nil, errors.New("amount cannot be empty")
-	}
-
-	// Parse the value using decimal library for precision
-	parsed, err := decimal.NewFromString(value)
-	if err != nil {
-		return nil, fmt.Errorf("invalid amount format: %w", err)
-	}
-
-	if parsed.IsNegative() {
-		return nil, errors.New("amount cannot be negative")
-	}
-
-	return &USDTAmount{value: parsed}, nil
-}
-
-// String returns the string representation of the amount.
-func (a *USDTAmount) String() string {
-	return a.value.StringFixed(USDTDecimalPlaces)
-}
-
-// Add adds another USDTAmount to this one.
-func (a *USDTAmount) Add(other *USDTAmount) (*USDTAmount, error) {
-	result := a.value.Add(other.value).Round(USDTDecimalPlaces)
-	return &USDTAmount{value: result}, nil
-}
-
-// Multiply multiplies this amount by a decimal multiplier.
-func (a *USDTAmount) Multiply(multiplier decimal.Decimal) (*USDTAmount, error) {
-	result := a.value.Mul(multiplier).Round(USDTDecimalPlaces)
-	return &USDTAmount{value: result}, nil
-}
-
-// LessThan returns true if this amount is less than the other amount.
-func (a *USDTAmount) LessThan(other *USDTAmount) bool {
-	return a.value.LessThan(other.value)
-}
-
-// GreaterThanOrEqual returns true if this amount is greater than or equal to the other amount.
-func (a *USDTAmount) GreaterThanOrEqual(other *USDTAmount) bool {
-	return a.value.GreaterThanOrEqual(other.value)
-}
-
-// Address represents a Tron USDT payment address.
-type Address struct {
-	address string
-}
-
-// NewPaymentAddress creates a new PaymentAddress from a string.
-func NewPaymentAddress(address string) (*Address, error) {
-	const minAddressLength = 10
-
-	if address == "" {
-		return nil, errors.New("address cannot be empty")
-	}
-
-	if len(address) < minAddressLength {
-		return nil, errors.New("address too short")
-	}
-
-	// Basic validation for Tron address format
-	// Tron addresses start with 'T'
-	if !strings.HasPrefix(address, "T") {
-		return nil, errors.New("invalid Tron address format")
-	}
-
-	// Check for valid characters (alphanumeric)
-	matched, err := regexp.MatchString(`^T[A-Za-z0-9]+$`, address)
-	if err != nil || !matched {
-		return nil, errors.New("invalid address format")
-	}
-
-	return &Address{address: address}, nil
-}
-
-// String returns the string representation of the address.
-func (a *Address) String() string {
-	return a.address
-}
-
-// Equals checks if two PaymentAddresses are equal.
-func (a *Address) Equals(other *Address) bool {
-	return a.address == other.address
-}
-
-// TransactionHash represents a blockchain transaction hash.
-type TransactionHash struct {
-	hash string
-}
-
-// NewTransactionHash creates a new TransactionHash from a string.
+// NewTransactionHash creates a new transaction hash using shared implementation.
 func NewTransactionHash(hash string) (*TransactionHash, error) {
-	const minHashLength = 32
+	return shared.NewTransactionHash(hash)
+}
+
+// NewPaymentAddress creates a new payment address using shared implementation.
+func NewPaymentAddress(address string, network shared.BlockchainNetwork) (*PaymentAddress, error) {
+	return shared.NewPaymentAddress(address, network)
+}
+
+// NewConfirmationCount creates a new confirmation count using shared implementation.
+func NewConfirmationCount(count int) (*ConfirmationCount, error) {
+	return shared.NewConfirmationCount(count)
+}
+
+// BlockInfo represents information about a blockchain block.
+type BlockInfo struct {
+	number int64
+	hash   string
+}
+
+// NewBlockInfo creates a new block info.
+func NewBlockInfo(number int64, hash string) (*BlockInfo, error) {
+	if number < 0 {
+		return nil, errors.New("block number cannot be negative")
+	}
 
 	if hash == "" {
-		return nil, errors.New("transaction hash cannot be empty")
+		return nil, errors.New("block hash cannot be empty")
 	}
 
-	if len(hash) < minHashLength {
-		return nil, errors.New("transaction hash too short")
+	return &BlockInfo{
+		number: number,
+		hash:   hash,
+	}, nil
+}
+
+// Number returns the block number.
+func (bi *BlockInfo) Number() int64 {
+	return bi.number
+}
+
+// Hash returns the block hash.
+func (bi *BlockInfo) Hash() string {
+	return bi.hash
+}
+
+// Equals returns true if this block info equals the other.
+func (bi *BlockInfo) Equals(other *BlockInfo) bool {
+	if other == nil {
+		return false
+	}
+	return bi.number == other.number && bi.hash == other.hash
+}
+
+// PaymentAmount represents a payment amount with currency.
+// This is a domain-specific wrapper around shared.Money for payment context.
+type PaymentAmount struct {
+	amount   *shared.Money
+	currency shared.CryptoCurrency
+}
+
+// NewPaymentAmount creates a new payment amount.
+func NewPaymentAmount(amount *shared.Money, currency shared.CryptoCurrency) (*PaymentAmount, error) {
+	if amount == nil {
+		return nil, errors.New("amount cannot be nil")
 	}
 
-	// Basic validation for hex format
-	matched, err := regexp.MatchString(`^[a-fA-F0-9]+$`, hash)
-	if err != nil || !matched {
-		return nil, errors.New("invalid transaction hash format")
+	if !currency.IsValid() {
+		return nil, errors.New("invalid cryptocurrency")
 	}
 
-	return &TransactionHash{hash: hash}, nil
+	return &PaymentAmount{
+		amount:   amount,
+		currency: currency,
+	}, nil
 }
 
-// String returns the string representation of the transaction hash.
-func (h *TransactionHash) String() string {
-	return h.hash
+// Amount returns the money amount.
+func (pa *PaymentAmount) Amount() *shared.Money {
+	return pa.amount
 }
 
-// Equals checks if two TransactionHashes are equal.
-func (h *TransactionHash) Equals(other *TransactionHash) bool {
-	return h.hash == other.hash
+// Currency returns the cryptocurrency.
+func (pa *PaymentAmount) Currency() shared.CryptoCurrency {
+	return pa.currency
 }
 
-// ConfirmationCount represents the number of blockchain confirmations.
-type ConfirmationCount struct {
-	count int
+// String returns the string representation of the payment amount.
+func (pa *PaymentAmount) String() string {
+	return fmt.Sprintf("%s %s", pa.amount.String(), pa.currency.String())
 }
 
-// NewConfirmationCount creates a new ConfirmationCount.
-func NewConfirmationCount(count int) (*ConfirmationCount, error) {
-	if count < 0 {
-		return nil, errors.New("confirmation count cannot be negative")
+// Equals returns true if this payment amount equals the other.
+func (pa *PaymentAmount) Equals(other *PaymentAmount) bool {
+	if other == nil {
+		return false
+	}
+	return pa.amount.Equals(other.amount) && pa.currency == other.currency
+}
+
+// NetworkFee represents a network fee for a transaction.
+type NetworkFee struct {
+	fee      *shared.Money
+	currency shared.CryptoCurrency
+}
+
+// NewNetworkFee creates a new network fee.
+func NewNetworkFee(fee *shared.Money, currency shared.CryptoCurrency) (*NetworkFee, error) {
+	if fee == nil {
+		return nil, errors.New("fee cannot be nil")
 	}
 
-	return &ConfirmationCount{count: count}, nil
+	if !currency.IsValid() {
+		return nil, errors.New("invalid cryptocurrency")
+	}
+
+	// Network fees should be positive
+	if fee.Amount().Sign() <= 0 {
+		return nil, errors.New("network fee must be positive")
+	}
+
+	return &NetworkFee{
+		fee:      fee,
+		currency: currency,
+	}, nil
 }
 
-// Int returns the integer value of the confirmation count.
-func (c *ConfirmationCount) Int() int {
-	return c.count
+// Fee returns the fee amount.
+func (nf *NetworkFee) Fee() *shared.Money {
+	return nf.fee
 }
 
-// Add adds one to the confirmation count.
-func (c *ConfirmationCount) Add() *ConfirmationCount {
-	return &ConfirmationCount{count: c.count + 1}
+// Currency returns the cryptocurrency.
+func (nf *NetworkFee) Currency() shared.CryptoCurrency {
+	return nf.currency
 }
 
-// GreaterThanOrEqual returns true if this count is greater than or equal to the other count.
-func (c *ConfirmationCount) GreaterThanOrEqual(other *ConfirmationCount) bool {
-	return c.count >= other.count
+// String returns the string representation of the network fee.
+func (nf *NetworkFee) String() string {
+	return fmt.Sprintf("%s %s", nf.fee.String(), nf.currency.String())
 }
 
-// String returns the string representation of the confirmation count.
-func (c *ConfirmationCount) String() string {
-	return strconv.Itoa(c.count)
+// Equals returns true if this network fee equals the other.
+func (nf *NetworkFee) Equals(other *NetworkFee) bool {
+	if other == nil {
+		return false
+	}
+	return nf.fee.Equals(other.fee) && nf.currency == other.currency
+}
+
+// PaymentTimestamps represents the various timestamps for a payment.
+type PaymentTimestamps struct {
+	detectedAt  time.Time
+	confirmedAt *time.Time
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+// NewPaymentTimestamps creates new payment timestamps.
+func NewPaymentTimestamps(detectedAt time.Time) *PaymentTimestamps {
+	now := time.Now().UTC()
+	return &PaymentTimestamps{
+		detectedAt: detectedAt,
+		createdAt:  now,
+		updatedAt:  now,
+	}
+}
+
+// DetectedAt returns when the payment was first detected.
+func (pt *PaymentTimestamps) DetectedAt() time.Time {
+	return pt.detectedAt
+}
+
+// ConfirmedAt returns when the payment was confirmed (if confirmed).
+func (pt *PaymentTimestamps) ConfirmedAt() *time.Time {
+	return pt.confirmedAt
+}
+
+// CreatedAt returns when the payment record was created.
+func (pt *PaymentTimestamps) CreatedAt() time.Time {
+	return pt.createdAt
+}
+
+// UpdatedAt returns when the payment record was last updated.
+func (pt *PaymentTimestamps) UpdatedAt() time.Time {
+	return pt.updatedAt
+}
+
+// SetConfirmedAt sets the confirmation timestamp.
+func (pt *PaymentTimestamps) SetConfirmedAt(confirmedAt time.Time) {
+	pt.confirmedAt = &confirmedAt
+	pt.updatedAt = time.Now().UTC()
+}
+
+// SetUpdatedAt updates the last updated timestamp.
+func (pt *PaymentTimestamps) SetUpdatedAt(updatedAt time.Time) {
+	pt.updatedAt = updatedAt
+}
+
+// Equals returns true if this payment timestamps equals the other.
+func (pt *PaymentTimestamps) Equals(other *PaymentTimestamps) bool {
+	if other == nil {
+		return false
+	}
+
+	// Compare confirmedAt pointers
+	var confirmedAtEqual bool
+	if pt.confirmedAt == nil && other.confirmedAt == nil {
+		confirmedAtEqual = true
+	} else if pt.confirmedAt != nil && other.confirmedAt != nil {
+		confirmedAtEqual = pt.confirmedAt.Equal(*other.confirmedAt)
+	} else {
+		confirmedAtEqual = false
+	}
+
+	return pt.detectedAt.Equal(other.detectedAt) &&
+		confirmedAtEqual &&
+		pt.createdAt.Equal(other.createdAt) &&
+		pt.updatedAt.Equal(other.updatedAt)
 }

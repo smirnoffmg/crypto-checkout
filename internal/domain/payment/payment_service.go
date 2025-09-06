@@ -1,39 +1,41 @@
-// Package service provides application services for business logic orchestration.
 package payment
 
 import (
 	"context"
+
+	"crypto-checkout/internal/domain/shared"
 )
 
-// CreatePaymentRequest represents a request to create a new
-type CreatePaymentRequest struct {
-	Amount          string `json:"amount"`
-	Address         string `json:"address"`
-	TransactionHash string `json:"transactionHash"`
-}
-
-// UpdatePaymentConfirmationsRequest represents a request to update payment confirmations.
-type UpdatePaymentConfirmationsRequest struct {
-	Confirmations int `json:"confirmations"`
-}
-
-// PaymentService defines the interface for payment-related business operations.
+// PaymentService defines the interface for payment operations.
 type PaymentService interface {
-	CreatePayment(ctx context.Context, req CreatePaymentRequest) (*Payment, error)
+	// CreatePayment creates a new payment record.
+	CreatePayment(ctx context.Context, req *CreatePaymentRequest) (*Payment, error)
 
-	// GetPayment retrieves a payment by its ID.
-	GetPayment(ctx context.Context, id string) (*Payment, error)
+	// GetPayment retrieves a payment by ID.
+	GetPayment(ctx context.Context, id shared.PaymentID) (*Payment, error)
 
-	// GetPaymentByTransactionHash retrieves a payment by its transaction hash.
-	GetPaymentByTransactionHash(ctx context.Context, hash string) (*Payment, error)
+	// GetPaymentByTransactionHash retrieves a payment by transaction hash.
+	GetPaymentByTransactionHash(ctx context.Context, txHash *TransactionHash) (*Payment, error)
 
-	// ListPaymentsByAddress retrieves all payments for a given address.
-	ListPaymentsByAddress(ctx context.Context, address string) ([]*Payment, error)
+	// UpdatePaymentStatus updates the payment status using the FSM.
+	UpdatePaymentStatus(ctx context.Context, id shared.PaymentID, event string) error
+
+	// UpdateConfirmations updates the confirmation count for a payment.
+	UpdateConfirmations(ctx context.Context, id shared.PaymentID, count int) error
+
+	// UpdateBlockInfo updates the block information for a payment.
+	UpdateBlockInfo(ctx context.Context, id shared.PaymentID, blockNumber int64, blockHash string) error
+
+	// UpdateNetworkFee updates the network fee for a payment.
+	UpdateNetworkFee(ctx context.Context, id shared.PaymentID, fee *shared.Money, currency shared.CryptoCurrency) error
+
+	// ListPaymentsByInvoice retrieves all payments for an invoice.
+	ListPaymentsByInvoice(ctx context.Context, invoiceID shared.InvoiceID) ([]*Payment, error)
 
 	// ListPaymentsByStatus retrieves all payments with the given status.
 	ListPaymentsByStatus(ctx context.Context, status PaymentStatus) ([]*Payment, error)
 
-	// ListPendingPayments retrieves all pending payments (detected or confirming).
+	// ListPendingPayments retrieves all pending payments.
 	ListPendingPayments(ctx context.Context) ([]*Payment, error)
 
 	// ListConfirmedPayments retrieves all confirmed payments.
@@ -45,30 +47,36 @@ type PaymentService interface {
 	// ListOrphanedPayments retrieves all orphaned payments.
 	ListOrphanedPayments(ctx context.Context) ([]*Payment, error)
 
-	// UpdatePaymentConfirmations updates the confirmation count for a
-	UpdatePaymentConfirmations(ctx context.Context, id string, req UpdatePaymentConfirmationsRequest) error
+	// GetPaymentStatistics returns payment statistics.
+	GetPaymentStatistics(ctx context.Context) (*PaymentStatistics, error)
+}
 
-	// MarkPaymentAsDetected marks a payment as detected.
-	MarkPaymentAsDetected(ctx context.Context, id string) error
+// CreatePaymentRequest represents a request to create a new payment.
+type CreatePaymentRequest struct {
+	ID                    shared.PaymentID
+	InvoiceID             shared.InvoiceID
+	Amount                *PaymentAmount
+	FromAddress           string
+	ToAddress             *PaymentAddress
+	TransactionHash       *TransactionHash
+	RequiredConfirmations int
+}
 
-	// MarkPaymentAsIncluded marks a payment as included in a block.
-	MarkPaymentAsIncluded(ctx context.Context, id string) error
+// PaymentStatistics represents payment statistics.
+type PaymentStatistics struct {
+	TotalPayments           int
+	ConfirmedPayments       int
+	PendingPayments         int
+	FailedPayments          int
+	OrphanedPayments        int
+	TotalAmount             *shared.Money
+	AverageConfirmationTime int64 // in seconds
+}
 
-	// MarkPaymentAsConfirmed marks a payment as confirmed.
-	MarkPaymentAsConfirmed(ctx context.Context, id string) error
-
-	// MarkPaymentAsFailed marks a payment as failed.
-	MarkPaymentAsFailed(ctx context.Context, id string) error
-
-	// MarkPaymentAsOrphaned marks a payment as orphaned.
-	MarkPaymentAsOrphaned(ctx context.Context, id string) error
-
-	// MarkPaymentAsBackToMempool marks a payment as back to mempool.
-	MarkPaymentAsBackToMempool(ctx context.Context, id string) error
-
-	// MarkPaymentAsDropped marks a payment as dropped.
-	MarkPaymentAsDropped(ctx context.Context, id string) error
-
-	// GetPaymentStatistics returns payment statistics by status.
-	GetPaymentStatistics(ctx context.Context) (map[PaymentStatus]int, error)
+// PaymentListResponse represents a response containing multiple payments.
+type PaymentListResponse struct {
+	Payments []*Payment
+	Total    int
+	Page     int
+	PageSize int
 }

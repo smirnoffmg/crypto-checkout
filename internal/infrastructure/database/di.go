@@ -30,7 +30,7 @@ func NewDatabaseConnection(cfg *config.Config, logger *zap.Logger) (*Connection,
 		zap.String("database", cfg.Database.DBName),
 	)
 
-	dbConfig := Config{
+	dbConfig := config.DatabaseConfig{
 		Host:     cfg.Database.Host,
 		Port:     cfg.Database.Port,
 		User:     cfg.Database.User,

@@ -1,0 +1,493 @@
+basePath: /
+definitions:
+  web.CreateInvoiceRequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/web.InvoiceItemRequest'
+        minItems: 1
+        type: array
+      tax_rate:
+        type: string
+    required:
+    - items
+    - tax_rate
+    type: object
+  web.CreateInvoiceResponse:
+    properties:
+      address:
+        type: string
+      created_at:
+        type: string
+      customer_url:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      invoice_url:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/web.InvoiceItemResponse'
+        type: array
+      payment_address:
+        type: string
+      status:
+        type: string
+      subtotal:
+        type: string
+      tax_amount:
+        type: string
+      tax_rate:
+        type: string
+      total:
+        type: string
+      usdt_amount:
+        description: API.md required fields
+        type: string
+    type: object
+  web.ErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      error:
+        type: string
+      message:
+        type: string
+      request_id:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  web.InvoiceItemRequest:
+    properties:
+      description:
+        type: string
+      quantity:
+        type: string
+      unit_price:
+        type: string
+    required:
+    - description
+    - quantity
+    - unit_price
+    type: object
+  web.InvoiceItemResponse:
+    properties:
+      description:
+        type: string
+      quantity:
+        type: string
+      total:
+        type: string
+      unit_price:
+        type: string
+    type: object
+  web.PaymentProgressResponse:
+    properties:
+      percent:
+        type: number
+      received:
+        type: string
+      remaining:
+        type: string
+      required:
+        type: string
+    type: object
+  web.PublicInvoiceResponse:
+    properties:
+      address:
+        type: string
+      cancel_url:
+        type: string
+      created_at:
+        type: string
+      crypto_currency:
+        type: string
+      currency:
+        type: string
+      description:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/web.InvoiceItemResponse'
+        type: array
+      paid_at:
+        type: string
+      payment_progress:
+        $ref: '#/definitions/web.PaymentProgressResponse'
+      payments:
+        items:
+          $ref: '#/definitions/web.PublicPaymentResponse'
+        type: array
+      return_url:
+        type: string
+      status:
+        type: string
+      subtotal:
+        type: string
+      tax_amount:
+        type: string
+      time_remaining:
+        type: integer
+      title:
+        type: string
+      total:
+        type: string
+      usdt_amount:
+        type: string
+    type: object
+  web.PublicInvoiceStatusResponse:
+    properties:
+      id:
+        type: string
+      status:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  web.PublicPaymentResponse:
+    properties:
+      amount:
+        type: string
+      confirmations:
+        type: integer
+      confirmed_at:
+        type: string
+      status:
+        type: string
+    type: object
+  web.TokenRequest:
+    properties:
+      api_key:
+        type: string
+      expires_in:
+        description: 1 second to 24 hours
+        maximum: 86400
+        minimum: 1
+        type: integer
+      grant_type:
+        type: string
+      scope:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - api_key
+    - expires_in
+    - grant_type
+    - scope
+    type: object
+  web.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      scope:
+        items:
+          type: string
+        type: array
+      token_type:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@crypto-checkout.com
+    name: API Support
+    url: https://crypto-checkout.com/support
+  description: A comprehensive cryptocurrency payment processing API for merchants
+    and customers.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://crypto-checkout.com/terms
+  title: Crypto Checkout API
+  version: "1.0"
+paths:
+  /api/v1/auth/token:
+    post:
+      consumes:
+      - application/json
+      description: Generate a JWT access token using API key authentication for accessing
+        protected endpoints
+      parameters:
+      - description: Token generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/web.TokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT token generated successfully
+          schema:
+            $ref: '#/definitions/web.TokenResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "401":
+          description: Invalid API key
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Generate JWT access token
+      tags:
+      - Authentication
+  /api/v1/invoices:
+    post:
+      consumes:
+      - application/json
+      description: Create a new invoice for cryptocurrency payment processing
+      parameters:
+      - description: Invoice creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/web.CreateInvoiceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Invoice created successfully
+          schema:
+            $ref: '#/definitions/web.CreateInvoiceResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "401":
+          description: Unauthorized - Invalid API key
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new invoice
+      tags:
+      - Invoices
+  /api/v1/invoices/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve detailed information about a specific invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Invoice details retrieved successfully
+          schema:
+            $ref: '#/definitions/web.CreateInvoiceResponse'
+        "400":
+          description: Invalid invoice ID
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "401":
+          description: Unauthorized - Invalid API key
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Invoice not found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get invoice details
+      tags:
+      - Invoices
+  /api/v1/public/invoice/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve public invoice information for customers (no authentication
+        required)
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Invoice data retrieved successfully
+          schema:
+            $ref: '#/definitions/web.PublicInvoiceResponse'
+        "400":
+          description: Invalid invoice ID
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Invoice not found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get public invoice data
+      tags:
+      - Public API
+  /api/v1/public/invoice/{id}/events:
+    get:
+      consumes:
+      - application/json
+      description: Stream real-time invoice events using Server-Sent Events (no authentication
+        required)
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Event stream started
+          schema:
+            type: string
+        "400":
+          description: Invalid invoice ID
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Invoice not found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get invoice events stream
+      tags:
+      - Public API
+  /api/v1/public/invoice/{id}/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the current status of an invoice (no authentication required)
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Invoice status retrieved successfully
+          schema:
+            $ref: '#/definitions/web.PublicInvoiceStatusResponse'
+        "400":
+          description: Invalid invoice ID
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Invoice not found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get invoice status
+      tags:
+      - Public API
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check the health status of the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API is healthy
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health check
+      tags:
+      - System
+  /invoice/{id}/qr:
+    get:
+      consumes:
+      - application/json
+      description: Generate and return a QR code image for invoice payment
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - image/png
+      responses:
+        "200":
+          description: QR code image
+          schema:
+            type: string
+        "400":
+          description: Invalid invoice ID
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "404":
+          description: Invoice not found
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/web.ErrorResponse'
+      summary: Get invoice QR code
+      tags:
+      - Invoices
+schemes:
+- http
+- https
+securityDefinitions:
+  ApiKeyAuth:
+    description: 'API Key authentication. Use format: Bearer sk_live_xxx or Bearer
+      sk_test_xxx'
+    in: header
+    name: Authorization
+    type: apiKey
+  BearerAuth:
+    description: 'JWT Bearer token authentication. Use format: Bearer <jwt_token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

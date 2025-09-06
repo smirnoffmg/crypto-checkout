@@ -2,6 +2,8 @@ package invoice
 
 import (
 	"context"
+
+	"crypto-checkout/internal/domain/shared"
 )
 
 // Repository defines the interface for invoice data persistence.
@@ -13,7 +15,7 @@ type Repository interface {
 	FindByID(ctx context.Context, id string) (*Invoice, error)
 
 	// FindByPaymentAddress retrieves an invoice by its payment address.
-	FindByPaymentAddress(ctx context.Context, address *PaymentAddress) (*Invoice, error)
+	FindByPaymentAddress(ctx context.Context, address *shared.PaymentAddress) (*Invoice, error)
 
 	// FindByStatus retrieves all invoices with the given status.
 	FindByStatus(ctx context.Context, status InvoiceStatus) ([]*Invoice, error)

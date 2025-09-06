@@ -2,179 +2,234 @@ package payment
 
 import (
 	"context"
-	"fmt"
+	"time"
 
-	"github.com/qmuntal/stateless"
+	"crypto-checkout/internal/domain/shared"
+
+	"github.com/looplab/fsm"
 )
 
-// Trigger represents the triggers for payment status transitions.
-type Trigger string
-
-// Payment trigger constants based on PAYMENT_STATUSES.md specification.
-const (
-	// TriggerDetected represents a transaction found in mempool or block.
-	TriggerDetected Trigger = "detected"
-	// TriggerIncluded represents a transaction included in block.
-	TriggerIncluded Trigger = "included"
-	// TriggerConfirmed represents sufficient confirmations received.
-	TriggerConfirmed Trigger = "confirmed"
-	// TriggerFailed represents a transaction failed or reverted.
-	TriggerFailed Trigger = "failed"
-	// TriggerOrphaned represents a block containing tx was orphaned.
-	TriggerOrphaned Trigger = "orphaned"
-	// TriggerBackToMempool represents a transaction back in mempool after reorg.
-	TriggerBackToMempool Trigger = "back_to_mempool"
-	// TriggerDropped represents a transaction dropped permanently.
-	TriggerDropped Trigger = "dropped"
-)
-
-// String returns the string representation of the trigger.
-func (t Trigger) String() string {
-	return string(t)
+// PaymentFSM wraps the looplab/fsm for payment state management.
+type PaymentFSM struct {
+	*fsm.FSM
+	payment *Payment
 }
 
-// StatusFSM manages payment status transitions using a finite state machine.
-type StatusFSM struct {
-	stateMachine *stateless.StateMachine
-}
+// NewPaymentFSM creates a new payment FSM.
+func NewPaymentFSM(payment *Payment) *PaymentFSM {
+	fsmInstance := fsm.NewFSM(
+		string(payment.Status()),
+		fsm.Events{
+			// From detected state
+			{Name: "include_in_block", Src: []string{string(StatusDetected)}, Dst: string(StatusConfirming)},
+			{Name: "fail", Src: []string{string(StatusDetected)}, Dst: string(StatusFailed)},
 
-// NewPaymentStatusFSM creates a new PaymentStatusFSM with the given initial status.
-func NewPaymentStatusFSM(initialStatus PaymentStatus) (*StatusFSM, error) {
-	sm := stateless.NewStateMachine(stateless.State(initialStatus))
-	fsm := &StatusFSM{stateMachine: sm}
+			// From confirming state
+			{Name: "confirm", Src: []string{string(StatusConfirming)}, Dst: string(StatusConfirmed)},
+			{Name: "orphan", Src: []string{string(StatusConfirming)}, Dst: string(StatusOrphaned)},
+			{Name: "fail", Src: []string{string(StatusConfirming)}, Dst: string(StatusFailed)},
 
-	fsm.configureTransitions()
+			// From orphaned state
+			{Name: "detect", Src: []string{string(StatusOrphaned)}, Dst: string(StatusDetected)},
+			{Name: "fail", Src: []string{string(StatusOrphaned)}, Dst: string(StatusFailed)},
 
-	return fsm, nil
-}
+			// Terminal states have no outgoing transitions
+		},
+		fsm.Callbacks{
+			// Guard conditions
+			"before_include_in_block": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					if err := CanIncludeInBlock(payment); err != nil {
+						e.Cancel(err)
+					}
+				}
+			},
+			"before_confirm": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					if err := CanConfirm(payment); err != nil {
+						e.Cancel(err)
+					}
+				}
+			},
+			"before_orphan": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					if err := CanOrphan(payment); err != nil {
+						e.Cancel(err)
+					}
+				}
+			},
+			"before_detect": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					if err := CanDetect(payment); err != nil {
+						e.Cancel(err)
+					}
+				}
+			},
+			"before_fail": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					if err := CanFail(payment); err != nil {
+						e.Cancel(err)
+					}
+				}
+			},
 
-// configureTransitions configures all valid state transitions based on PAYMENT_STATUSES.md.
-func (fsm *StatusFSM) configureTransitions() {
-	// Configure detected state transitions
-	fsm.stateMachine.Configure(StatusDetected).
-		Permit(TriggerIncluded, StatusConfirming).
-		Permit(TriggerFailed, StatusFailed)
+			// State entry callbacks
+			"enter_confirmed": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					now := time.Now().UTC()
+					if payment.ConfirmedAt() == nil {
+						payment.SetConfirmedAt(now)
+					}
+					// Update payment status to match FSM state
+					payment.status = StatusConfirmed
+					payment.timestamps.SetUpdatedAt(now)
+				}
+			},
+			"enter_state": func(ctx context.Context, e *fsm.Event) {
+				if len(e.Args) > 0 {
+					payment := e.Args[0].(*Payment)
+					// Update payment status to match FSM state
+					payment.status = PaymentStatus(e.Dst)
+					payment.timestamps.SetUpdatedAt(time.Now().UTC())
+				}
+			},
+		},
+	)
 
-	// Configure confirming state transitions
-	fsm.stateMachine.Configure(StatusConfirming).
-		Permit(TriggerConfirmed, StatusConfirmed).
-		Permit(TriggerOrphaned, StatusOrphaned).
-		Permit(TriggerFailed, StatusFailed)
-
-	// Configure orphaned state transitions
-	fsm.stateMachine.Configure(StatusOrphaned).
-		Permit(TriggerBackToMempool, StatusDetected).
-		Permit(TriggerDropped, StatusFailed)
-
-	// Configure terminal states (no transitions allowed)
-	fsm.stateMachine.Configure(StatusConfirmed).
-		Ignore(TriggerDetected).
-		Ignore(TriggerIncluded).
-		Ignore(TriggerConfirmed).
-		Ignore(TriggerFailed).
-		Ignore(TriggerOrphaned).
-		Ignore(TriggerBackToMempool).
-		Ignore(TriggerDropped)
-
-	fsm.stateMachine.Configure(StatusFailed).
-		Ignore(TriggerDetected).
-		Ignore(TriggerIncluded).
-		Ignore(TriggerConfirmed).
-		Ignore(TriggerFailed).
-		Ignore(TriggerOrphaned).
-		Ignore(TriggerBackToMempool).
-		Ignore(TriggerDropped)
+	return &PaymentFSM{
+		FSM:     fsmInstance,
+		payment: payment,
+	}
 }
 
 // CurrentStatus returns the current payment status.
-func (fsm *StatusFSM) CurrentStatus() PaymentStatus {
-	state, err := fsm.stateMachine.State(context.Background())
-	if err != nil {
-		// This should never happen in normal operation
-		panic("failed to get current state: " + err.Error())
+func (pfsm *PaymentFSM) CurrentStatus() PaymentStatus {
+	return PaymentStatus(pfsm.FSM.Current())
+}
+
+// CanTransitionTo checks if the payment can transition to the target status.
+func (pfsm *PaymentFSM) CanTransitionTo(target PaymentStatus) bool {
+	return pfsm.payment.Status().CanTransitionTo(target)
+}
+
+// TransitionTo transitions the payment to the target status.
+func (pfsm *PaymentFSM) TransitionTo(target PaymentStatus) error {
+	if !pfsm.CanTransitionTo(target) {
+		return NewInvalidPaymentTransitionError(string(pfsm.CurrentStatus()), string(target))
 	}
-	return state.(PaymentStatus) //nolint:errcheck // Type assertion is safe here
-}
 
-// CanTransitionTo checks if a transition to the given status is possible.
-func (fsm *StatusFSM) CanTransitionTo(status PaymentStatus) bool {
-	currentStatus := fsm.CurrentStatus()
-
-	// Check valid transitions based on PAYMENT_STATUSES.md
-	switch currentStatus {
-	case StatusDetected:
-		return status == StatusConfirming || status == StatusFailed
-	case StatusConfirming:
-		return status == StatusConfirmed || status == StatusOrphaned || status == StatusFailed
-	case StatusOrphaned:
-		return status == StatusDetected || status == StatusFailed
-	case StatusConfirmed, StatusFailed:
-		return false // Terminal states
-	default:
-		return false
+	// Map status to event
+	event := statusToEvent(pfsm.CurrentStatus(), target)
+	if event == "" {
+		return NewInvalidPaymentTransitionError(string(pfsm.CurrentStatus()), string(target))
 	}
+
+	ctx := context.Background()
+	return pfsm.FSM.Event(ctx, event, pfsm.payment)
 }
 
-// CanTransition checks if a transition is possible from the current state.
-func (fsm *StatusFSM) CanTransition(trigger Trigger) bool {
-	canFire, _ := fsm.stateMachine.CanFire(stateless.Trigger(trigger))
-	return canFire
+// Event triggers a payment event.
+func (pfsm *PaymentFSM) Event(ctx context.Context, event string) error {
+	return pfsm.FSM.Event(ctx, event, pfsm.payment)
 }
 
-// Fire triggers a state transition with the given trigger.
-func (fsm *StatusFSM) Fire(_ context.Context, trigger Trigger) error {
-	// Check if this is a valid transition by checking if the trigger is permitted
-	permittedTriggers := fsm.GetPermittedTriggers()
-	isPermitted := false
-	for _, permitted := range permittedTriggers {
-		if permitted == trigger {
-			isPermitted = true
-			break
+// IsTerminal returns true if the payment is in a terminal state.
+func (pfsm *PaymentFSM) IsTerminal() bool {
+	return pfsm.CurrentStatus().IsTerminal()
+}
+
+// IsActive returns true if the payment is in an active state.
+func (pfsm *PaymentFSM) IsActive() bool {
+	return pfsm.CurrentStatus().IsActive()
+}
+
+// GetValidTransitions returns all valid transitions from the current state.
+func (pfsm *PaymentFSM) GetValidTransitions() []PaymentStatus {
+	current := pfsm.CurrentStatus()
+	var valid []PaymentStatus
+
+	for _, status := range []PaymentStatus{StatusDetected, StatusConfirming, StatusConfirmed, StatusOrphaned, StatusFailed} {
+		if current.CanTransitionTo(status) {
+			valid = append(valid, status)
 		}
 	}
 
-	if !isPermitted {
-		return fmt.Errorf("invalid transition: %s from state %s", string(trigger), string(fsm.CurrentStatus()))
-	}
-
-	return fsm.stateMachine.Fire(stateless.Trigger(trigger)) //nolint:wrapcheck // Error is already descriptive
+	return valid
 }
 
-// FireWithParameters triggers a state transition with the given trigger and parameters.
-func (fsm *StatusFSM) FireWithParameters(_ context.Context, trigger Trigger, args ...any) error {
-	return fsm.stateMachine.Fire(stateless.Trigger(trigger), args...) //nolint:wrapcheck // Error is already descriptive
-}
+// Guard condition functions (made public for testing)
 
-// GetPermittedTriggers returns all triggers that are currently permitted.
-// Note: This excludes ignored triggers (terminal states ignore all triggers).
-func (fsm *StatusFSM) GetPermittedTriggers() []Trigger {
-	triggers, err := fsm.stateMachine.PermittedTriggers()
-	if err != nil {
-		// This should never happen in normal operation
-		panic("failed to get permitted triggers: " + err.Error())
+// CanIncludeInBlock checks if the payment can be included in a block.
+func CanIncludeInBlock(payment *Payment) error {
+	if payment.Status() != StatusDetected {
+		return NewInvalidPaymentTransitionError(string(payment.Status()), string(StatusConfirming))
 	}
 
-	// Filter out ignored triggers for terminal states
-	currentStatus := fsm.CurrentStatus()
-	if currentStatus.IsTerminal() {
-		// Terminal states ignore all triggers, so return empty slice
-		return []Trigger{}
+	if payment.BlockInfo() == nil {
+		return NewInvalidBlockInfoError("block information required for inclusion")
 	}
 
-	result := make([]Trigger, len(triggers))
-	for i, trigger := range triggers {
-		result[i] = trigger.(Trigger) //nolint:errcheck // Type assertion is safe here
+	return nil
+}
+
+// CanConfirm checks if the payment can be confirmed.
+func CanConfirm(payment *Payment) error {
+	if payment.Status() != StatusConfirming {
+		return NewInvalidPaymentTransitionError(string(payment.Status()), string(StatusConfirmed))
 	}
-	return result
+
+	if !payment.IsConfirmed() {
+		return NewInsufficientConfirmationsError(payment.Confirmations().Int(), payment.RequiredConfirmations())
+	}
+
+	return nil
 }
 
-// IsInState checks if the FSM is in the given status.
-func (fsm *StatusFSM) IsInState(status PaymentStatus) bool {
-	isInState, _ := fsm.stateMachine.IsInState(stateless.State(status))
-	return isInState
+// CanOrphan checks if the payment can be orphaned.
+func CanOrphan(payment *Payment) error {
+	if payment.Status() != StatusConfirming {
+		return NewInvalidPaymentTransitionError(string(payment.Status()), string(StatusOrphaned))
+	}
+
+	return nil
 }
 
-// ToGraph returns a DOT graph representation of the state machine.
-func (fsm *StatusFSM) ToGraph() string {
-	return fsm.stateMachine.ToGraph()
+// CanDetect checks if the payment can be detected again.
+func CanDetect(payment *Payment) error {
+	if payment.Status() != StatusOrphaned {
+		return NewInvalidPaymentTransitionError(string(payment.Status()), string(StatusDetected))
+	}
+
+	return nil
+}
+
+// CanFail checks if the payment can fail.
+func CanFail(payment *Payment) error {
+	// Payment can fail from any non-terminal state
+	if payment.Status().IsTerminal() {
+		return shared.NewTerminalStateError(string(payment.Status()), "fail")
+	}
+
+	return nil
+}
+
+// Helper function to map status transitions to events
+func statusToEvent(from, to PaymentStatus) string {
+	transitions := map[string]string{
+		string(StatusDetected) + "->" + string(StatusConfirming):  "include_in_block",
+		string(StatusDetected) + "->" + string(StatusFailed):      "fail",
+		string(StatusConfirming) + "->" + string(StatusConfirmed): "confirm",
+		string(StatusConfirming) + "->" + string(StatusOrphaned):  "orphan",
+		string(StatusConfirming) + "->" + string(StatusFailed):    "fail",
+		string(StatusOrphaned) + "->" + string(StatusDetected):    "detect",
+		string(StatusOrphaned) + "->" + string(StatusFailed):      "fail",
+	}
+
+	return transitions[string(from)+"->"+string(to)]
 }

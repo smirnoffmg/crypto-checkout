@@ -8,17 +8,27 @@ import (
 
 // InvoiceModel represents the database model for invoices.
 type InvoiceModel struct {
-	ID             string    `gorm:"primaryKey;type:varchar(32)"`
-	Status         string    `gorm:"type:varchar(20);not null"`
-	TaxRate        string    `gorm:"type:decimal(5,4);not null"`
-	PaymentAddress *string   `gorm:"type:varchar(42)"`
-	CreatedAt      time.Time `gorm:"not null"`
-	PaidAt         *time.Time
-	UpdatedAt      time.Time
-	DeletedAt      gorm.DeletedAt `gorm:"index"`
-
-	// Relationships
-	Items []InvoiceItemModel `gorm:"foreignKey:InvoiceID;constraint:OnDelete:CASCADE"`
+	ID               string  `gorm:"primaryKey;type:uuid"`
+	MerchantID       string  `gorm:"type:uuid;not null;index"`
+	CustomerID       *string `gorm:"type:uuid;index"` // Made optional to match domain model
+	Title            string  `gorm:"type:varchar(255);not null"`
+	Description      string  `gorm:"type:text"`
+	Items            string  `gorm:"type:jsonb"` // Store items as JSONB as per DB.md
+	Subtotal         string  `gorm:"type:decimal(20,2);not null"`
+	Tax              string  `gorm:"type:decimal(20,2);not null;default:0"`
+	Total            string  `gorm:"type:decimal(20,2);not null"`
+	Currency         string  `gorm:"type:varchar(3);not null"`
+	CryptoCurrency   string  `gorm:"type:varchar(10);not null"`
+	CryptoAmount     string  `gorm:"type:decimal(20,8);not null"`
+	PaymentAddress   *string `gorm:"type:varchar(42)"`
+	Status           string  `gorm:"type:varchar(20);not null"`
+	ExchangeRate     string  `gorm:"type:jsonb"`
+	PaymentTolerance string  `gorm:"type:jsonb"`
+	ExpiresAt        *time.Time
+	CreatedAt        time.Time `gorm:"not null"`
+	UpdatedAt        time.Time `gorm:"not null"`
+	PaidAt           *time.Time
+	DeletedAt        gorm.DeletedAt `gorm:"index"`
 }
 
 // TableName returns the table name for the InvoiceModel.
@@ -26,34 +36,24 @@ func (InvoiceModel) TableName() string {
 	return "invoices"
 }
 
-// InvoiceItemModel represents the database model for invoice items.
-type InvoiceItemModel struct {
-	ID          uint   `gorm:"primaryKey"`
-	InvoiceID   string `gorm:"type:varchar(32);not null;index"`
-	Description string `gorm:"type:text;not null"`
-	UnitPrice   string `gorm:"type:decimal(20,2);not null"`
-	Quantity    string `gorm:"type:decimal(20,8);not null"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
-}
-
-// TableName returns the table name for the InvoiceItemModel.
-func (InvoiceItemModel) TableName() string {
-	return "invoice_items"
-}
-
 // PaymentModel represents the database model for payments.
 type PaymentModel struct {
-	ID              string         `gorm:"primaryKey;type:varchar(64)"`
-	Amount          string         `gorm:"type:decimal(20,2);not null"`
-	Address         string         `gorm:"type:varchar(42);not null"`
-	TransactionHash string         `gorm:"type:varchar(64);not null;uniqueIndex"`
-	Confirmations   int            `gorm:"not null;default:0"`
-	Status          string         `gorm:"type:varchar(20);not null"`
-	CreatedAt       time.Time      `gorm:"not null"`
-	UpdatedAt       time.Time      `gorm:"not null"`
-	DeletedAt       gorm.DeletedAt `gorm:"index"`
+	ID                    string    `gorm:"primaryKey;type:uuid"`
+	InvoiceID             string    `gorm:"type:uuid;not null;index"`
+	TxHash                string    `gorm:"type:varchar(64);not null;uniqueIndex"` // Changed from TransactionHash to match DB.md
+	Amount                string    `gorm:"type:decimal(20,8);not null"`
+	FromAddress           string    `gorm:"type:varchar(42);not null"`
+	ToAddress             string    `gorm:"type:varchar(42);not null"`
+	Status                string    `gorm:"type:varchar(20);not null"`
+	Confirmations         int       `gorm:"not null;default:0"`
+	RequiredConfirmations int       `gorm:"not null;default:1"`
+	BlockNumber           *int64    `gorm:"type:bigint"`
+	BlockHash             *string   `gorm:"type:varchar(64)"`
+	NetworkFee            *string   `gorm:"type:decimal(20,8)"`
+	DetectedAt            time.Time `gorm:"not null"`
+	ConfirmedAt           *time.Time
+	CreatedAt             time.Time      `gorm:"not null"`
+	DeletedAt             gorm.DeletedAt `gorm:"index"`
 }
 
 // TableName returns the table name for the PaymentModel.

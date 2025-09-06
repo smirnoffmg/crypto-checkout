@@ -1,71 +1,94 @@
-// Package payment provides domain models for payment management in the crypto-checkout system.
 package payment
 
-import "fmt"
-
-// PaymentStatus represents the status of a payment using FSM.
-//
-//nolint:revive // Domain-specific naming convention
+// PaymentStatus represents the current status of a payment in the blockchain confirmation process.
 type PaymentStatus string
 
-// Payment status constants based on PAYMENT_STATUSES.md specification.
 const (
-	// StatusDetected represents a transaction found in mempool or block (0 confirmations).
+	// StatusDetected indicates the payment transaction has been detected in the mempool
+	// but not yet included in a block.
 	StatusDetected PaymentStatus = "detected"
-	// StatusConfirming represents a transaction included in block (1-11 confirmations).
+
+	// StatusConfirming indicates the payment transaction has been included in a block
+	// and is gaining confirmations.
 	StatusConfirming PaymentStatus = "confirming"
-	// StatusConfirmed represents sufficient confirmations received (12+ confirmations).
+
+	// StatusConfirmed indicates the payment has received sufficient confirmations
+	// and is considered final.
 	StatusConfirmed PaymentStatus = "confirmed"
-	// StatusFailed represents a transaction failed or reverted.
-	StatusFailed PaymentStatus = "failed"
-	// StatusOrphaned represents a block containing tx was orphaned (temporary state).
+
+	// StatusOrphaned indicates the payment transaction was included in a block
+	// that was later orphaned by the blockchain.
 	StatusOrphaned PaymentStatus = "orphaned"
+
+	// StatusFailed indicates the payment transaction failed or was reverted.
+	StatusFailed PaymentStatus = "failed"
 )
 
-// String returns the string representation of the status.
-func (s PaymentStatus) String() string {
-	return string(s)
+// String returns the string representation of the payment status.
+func (ps PaymentStatus) String() string {
+	return string(ps)
 }
 
-// ParsePaymentStatus parses a string into a PaymentStatus.
-func ParsePaymentStatus(status string) (PaymentStatus, error) {
-	switch status {
-	case StatusDetected.String():
-		return StatusDetected, nil
-	case StatusConfirming.String():
-		return StatusConfirming, nil
-	case StatusConfirmed.String():
-		return StatusConfirmed, nil
-	case StatusFailed.String():
-		return StatusFailed, nil
-	case StatusOrphaned.String():
-		return StatusOrphaned, nil
+// IsValid checks if the payment status is valid.
+func (ps PaymentStatus) IsValid() bool {
+	switch ps {
+	case StatusDetected, StatusConfirming, StatusConfirmed, StatusOrphaned, StatusFailed:
+		return true
 	default:
-		return "", fmt.Errorf("invalid payment status: %s", status)
+		return false
 	}
 }
 
-// IsTerminal returns true if the status is a terminal state (no further transitions possible).
-func (s PaymentStatus) IsTerminal() bool {
-	return s == StatusConfirmed || s == StatusFailed
+// IsTerminal returns true if the payment status is a terminal state.
+func (ps PaymentStatus) IsTerminal() bool {
+	switch ps {
+	case StatusConfirmed, StatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
-// IsActive returns true if the status allows further processing.
-func (s PaymentStatus) IsActive() bool {
-	return s == StatusDetected || s == StatusConfirming || s == StatusOrphaned
+// IsActive returns true if the payment status is an active (non-terminal) state.
+func (ps PaymentStatus) IsActive() bool {
+	return !ps.IsTerminal()
 }
 
-// IsSuccessful returns true if the status indicates successful payment completion.
-func (s PaymentStatus) IsSuccessful() bool {
-	return s == StatusConfirmed
+// CanTransitionTo checks if the payment can transition to the target status.
+func (ps PaymentStatus) CanTransitionTo(target PaymentStatus) bool {
+	if !target.IsValid() {
+		return false
+	}
+
+	// Define valid transitions based on the state machine
+	validTransitions := map[PaymentStatus][]PaymentStatus{
+		StatusDetected:   {StatusConfirming, StatusFailed},
+		StatusConfirming: {StatusConfirmed, StatusOrphaned, StatusFailed},
+		StatusOrphaned:   {StatusDetected, StatusFailed},
+		// Terminal states cannot transition
+		StatusConfirmed: {},
+		StatusFailed:    {},
+	}
+
+	allowedTransitions, exists := validTransitions[ps]
+	if !exists {
+		return false
+	}
+
+	for _, allowed := range allowedTransitions {
+		if allowed == target {
+			return true
+		}
+	}
+
+	return false
 }
 
-// IsFailed returns true if the status indicates payment failure.
-func (s PaymentStatus) IsFailed() bool {
-	return s == StatusFailed
-}
-
-// IsTemporary returns true if the status is temporary and must transition.
-func (s PaymentStatus) IsTemporary() bool {
-	return s == StatusOrphaned
+// ParsePaymentStatus parses a string into a PaymentStatus.
+func ParsePaymentStatus(s string) (PaymentStatus, error) {
+	status := PaymentStatus(s)
+	if !status.IsValid() {
+		return "", NewInvalidPaymentStatusError(s)
+	}
+	return status, nil
 }

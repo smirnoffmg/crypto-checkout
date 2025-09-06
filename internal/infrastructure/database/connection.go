@@ -6,22 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"crypto-checkout/pkg/config"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
-
-// Config holds database configuration.
-type Config struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
-	URL      string // Optional database URL (for SQLite, PostgreSQL, etc.)
-}
 
 // Connection represents a database connection.
 type Connection struct {
@@ -29,7 +20,7 @@ type Connection struct {
 }
 
 // NewConnection creates a new database connection.
-func NewConnection(config Config) (*Connection, error) {
+func NewConnection(config config.DatabaseConfig) (*Connection, error) {
 	var db *gorm.DB
 	var err error
 
@@ -109,7 +100,6 @@ func NewConnection(config Config) (*Connection, error) {
 func (c *Connection) Migrate() error {
 	if err := c.DB.AutoMigrate(
 		&InvoiceModel{},
-		&InvoiceItemModel{},
 		&PaymentModel{},
 	); err != nil {
 		return fmt.Errorf("failed to run database migrations: %w", err)

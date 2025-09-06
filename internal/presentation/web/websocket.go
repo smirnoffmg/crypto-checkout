@@ -307,14 +307,14 @@ func (h *Handler) serveWS(c *gin.Context) {
 	// Verify invoice exists
 	_, err := h.invoiceService.GetInvoice(c.Request.Context(), invoiceID)
 	if err != nil {
-		h.logger.Error("Failed to get invoice for WebSocket", zap.Error(err), zap.String("invoice_id", invoiceID))
+		h.Logger.Error("Failed to get invoice for WebSocket", zap.Error(err), zap.String("invoice_id", invoiceID))
 		c.JSON(http.StatusNotFound, gin.H{"error": "invoice not found"})
 		return
 	}
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		h.logger.Error("Failed to upgrade connection to WebSocket", zap.Error(err))
+		h.Logger.Error("Failed to upgrade connection to WebSocket", zap.Error(err))
 		return
 	}
 
@@ -323,7 +323,7 @@ func (h *Handler) serveWS(c *gin.Context) {
 		conn:      conn,
 		send:      make(chan []byte, sendChannelBuffer),
 		invoiceID: invoiceID,
-		logger:    h.logger,
+		logger:    h.Logger,
 	}
 
 	client.hub.register <- client
@@ -337,18 +337,18 @@ func (h *Handler) serveWS(c *gin.Context) {
 // BroadcastInvoiceUpdate broadcasts an invoice update to all connected clients.
 func (h *Handler) BroadcastInvoiceUpdate(invoice *invoice.Invoice) {
 	update := InvoiceStatusUpdate{
-		InvoiceID: invoice.ID(),
+		InvoiceID: string(invoice.ID()),
 		Status:    invoice.Status().String(),
 		Timestamp: time.Now().UTC(),
 	}
 
 	message, err := json.Marshal(update)
 	if err != nil {
-		h.logger.Error("Failed to marshal invoice update", zap.Error(err))
+		h.Logger.Error("Failed to marshal invoice update", zap.Error(err))
 		return
 	}
 
-	h.hub.BroadcastToInvoice(invoice.ID(), message)
+	h.hub.BroadcastToInvoice(string(invoice.ID()), message)
 }
 
 // InvoiceStatusUpdate represents a WebSocket message for invoice status updates.

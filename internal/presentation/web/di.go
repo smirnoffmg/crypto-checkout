@@ -86,7 +86,7 @@ func ErrorHandler(cfg *config.Config, logger *zap.Logger) gin.HandlerFunc {
 				statusCode = http.StatusNotFound
 				errorMessage = err.Error()
 				errorCode = "NOT_FOUND"
-			case errors.Is(err, invoice.ErrInvoiceServiceError):
+			case errors.Is(err, invoice.ErrServiceError):
 				statusCode = http.StatusInternalServerError
 				errorMessage = "Failed to process invoice"
 				errorCode = "INVOICE_SERVICE_ERROR"
@@ -94,7 +94,7 @@ func ErrorHandler(cfg *config.Config, logger *zap.Logger) gin.HandlerFunc {
 				statusCode = http.StatusBadRequest
 				errorMessage = err.Error()
 				errorCode = "INVALID_PAYMENT_ADDRESS"
-			case errors.Is(err, payment.ErrPaymentServiceError):
+			case errors.Is(err, payment.ErrServiceError):
 				statusCode = http.StatusInternalServerError
 				errorMessage = "Failed to process payment"
 				errorCode = "PAYMENT_SERVICE_ERROR"
@@ -122,7 +122,7 @@ func ErrorHandler(cfg *config.Config, logger *zap.Logger) gin.HandlerFunc {
 			}
 
 			// Create a detailed error response
-			errorResponse := (&Handler{logger: logger, config: cfg}).createErrorResponse(errorCode, errorMessage, err)
+			errorResponse := (&Handler{Logger: logger, config: cfg}).createErrorResponse(errorCode, errorMessage, err)
 			c.AbortWithStatusJSON(statusCode, errorResponse)
 			return
 		}
