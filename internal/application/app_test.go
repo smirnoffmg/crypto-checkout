@@ -1,4 +1,4 @@
-package main
+package application_test
 
 import (
 	"context"
@@ -13,7 +13,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"crypto-checkout/internal/pkg/config"
+	"crypto-checkout/internal/application"
+	"crypto-checkout/pkg/config"
 )
 
 func TestApplication(t *testing.T) {
@@ -323,8 +324,8 @@ func testConcurrentStartup(t *testing.T) {
 func createAppOptions() []fx.Option {
 	return []fx.Option{
 		fx.Provide(config.NewConfigProvider),
-		fx.Provide(NewLogger),
-		fx.Invoke(StartApplication),
+		fx.Provide(application.NewLogger),
+		fx.Invoke(application.StartApplication),
 	}
 }
 

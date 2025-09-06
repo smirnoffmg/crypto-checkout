@@ -16,6 +16,8 @@ const (
 	DefaultServerHost = "localhost"
 	// DefaultLogLevel is the default log level.
 	DefaultLogLevel = "info"
+	// DefaultLogDir is the default log directory.
+	DefaultLogDir = "logs"
 	// DefaultPostgresPort is the default PostgreSQL port.
 	DefaultPostgresPort = 5432
 )
@@ -36,6 +38,7 @@ type ServerConfig struct {
 // LogConfig represents logging configuration.
 type LogConfig struct {
 	Level string `mapstructure:"level"`
+	Dir   string `mapstructure:"dir"`
 }
 
 // DatabaseConfig represents database configuration.
@@ -57,6 +60,7 @@ func Load() (*Config, error) {
 	v.SetDefault("server.port", DefaultServerPort)
 	v.SetDefault("server.host", DefaultServerHost)
 	v.SetDefault("log.level", DefaultLogLevel)
+	v.SetDefault("log.dir", DefaultLogDir)
 	v.SetDefault("database.host", "localhost")
 	v.SetDefault("database.port", DefaultPostgresPort)
 	v.SetDefault("database.user", "crypto_user")
@@ -102,6 +106,7 @@ func NewConfig() *Config {
 		},
 		Log: LogConfig{
 			Level: DefaultLogLevel,
+			Dir:   DefaultLogDir,
 		},
 		Database: DatabaseConfig{
 			Host:     "localhost",

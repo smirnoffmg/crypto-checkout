@@ -1,5 +1,25 @@
 # Invoice Status Management
 
+- [Invoice Status Management](#invoice-status-management)
+  - [Overview](#overview)
+  - [Status Definitions](#status-definitions)
+  - [State Transitions](#state-transitions)
+    - [Valid Transitions](#valid-transitions)
+    - [Forbidden Transitions](#forbidden-transitions)
+  - [Transition Triggers](#transition-triggers)
+    - [Automatic Triggers](#automatic-triggers)
+    - [Manual Triggers](#manual-triggers)
+  - [Business Rules](#business-rules)
+    - [Money Protection Rules](#money-protection-rules)
+    - [Timeout Behavior](#timeout-behavior)
+    - [Error Handling](#error-handling)
+  - [Customer Communication](#customer-communication)
+    - [Status Messages](#status-messages)
+    - [Notification Points](#notification-points)
+  - [Monitoring \& Alerting](#monitoring--alerting)
+    - [Key Metrics](#key-metrics)
+    - [Alerts](#alerts)
+
 ## Overview
 
 Crypto Checkout uses a finite state machine (FSM) pattern to manage invoice statuses, ensuring valid state transitions and preventing business logic errors. Each invoice follows a predictable lifecycle from creation to completion.

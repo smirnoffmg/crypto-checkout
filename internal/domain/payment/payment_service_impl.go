@@ -1,4 +1,4 @@
-package service
+package payment
 
 import (
 	"context"
@@ -6,27 +6,25 @@ import (
 	"fmt"
 
 	"github.com/shopspring/decimal"
-
-	"crypto-checkout/internal/domain/payment"
 )
 
 // paymentServiceImpl implements the PaymentService interface.
 type paymentServiceImpl struct {
-	repo payment.Repository
+	repo Repository
 }
 
 // NewPaymentService creates a new PaymentService instance.
-func NewPaymentService(repo payment.Repository) PaymentService {
+func NewPaymentService(repo Repository) PaymentService {
 	return &paymentServiceImpl{
 		repo: repo,
 	}
 }
 
-// CreatePayment creates a new payment.
+// CreatePayment creates a new
 func (s *paymentServiceImpl) CreatePayment(
 	ctx context.Context,
 	req CreatePaymentRequest,
-) (*payment.Payment, error) {
+) (*Payment, error) {
 	if req.Amount == "" {
 		return nil, fmt.Errorf("%w: amount cannot be empty", ErrInvalidRequest)
 	}
@@ -46,19 +44,19 @@ func (s *paymentServiceImpl) CreatePayment(
 		return nil, fmt.Errorf("%w: amount must be positive", ErrInvalidAmount)
 	}
 
-	usdtAmount, err := payment.NewUSDTAmount(amount.String())
+	usdtAmount, err := NewUSDTAmount(amount.String())
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidAmount, err)
 	}
 
 	// Parse and validate address
-	paymentAddress, err := payment.NewPaymentAddress(req.Address)
+	paymentAddress, err := NewPaymentAddress(req.Address)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPaymentAddress, err)
 	}
 
 	// Parse and validate transaction hash
-	transactionHash, err := payment.NewTransactionHash(req.TransactionHash)
+	transactionHash, err := NewTransactionHash(req.TransactionHash)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidTransactionHash, err)
 	}
@@ -67,7 +65,7 @@ func (s *paymentServiceImpl) CreatePayment(
 	paymentID := fmt.Sprintf("pay_%d", len(req.TransactionHash))
 
 	// Create payment
-	paymentEntity, err := payment.NewPayment(
+	paymentEntity, err := NewPayment(
 		paymentID,
 		usdtAmount,
 		paymentAddress,
@@ -86,14 +84,14 @@ func (s *paymentServiceImpl) CreatePayment(
 }
 
 // GetPayment retrieves a payment by its ID.
-func (s *paymentServiceImpl) GetPayment(ctx context.Context, id string) (*payment.Payment, error) {
+func (s *paymentServiceImpl) GetPayment(ctx context.Context, id string) (*Payment, error) {
 	if id == "" {
 		return nil, fmt.Errorf("%w: payment ID cannot be empty", ErrInvalidRequest)
 	}
 
 	paymentEntity, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, payment.ErrPaymentNotFound) {
+		if errors.Is(err, ErrPaymentNotFound) {
 			return nil, fmt.Errorf("%w: %w", ErrPaymentNotFound, err)
 		}
 		return nil, fmt.Errorf("%w: failed to retrieve payment: %w", ErrPaymentServiceError, err)
@@ -106,19 +104,19 @@ func (s *paymentServiceImpl) GetPayment(ctx context.Context, id string) (*paymen
 func (s *paymentServiceImpl) GetPaymentByTransactionHash(
 	ctx context.Context,
 	hash string,
-) (*payment.Payment, error) {
+) (*Payment, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("%w: transaction hash cannot be empty", ErrInvalidRequest)
 	}
 
-	transactionHash, err := payment.NewTransactionHash(hash)
+	transactionHash, err := NewTransactionHash(hash)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidTransactionHash, err)
 	}
 
 	paymentEntity, err := s.repo.FindByTransactionHash(ctx, transactionHash)
 	if err != nil {
-		if errors.Is(err, payment.ErrPaymentNotFound) {
+		if errors.Is(err, ErrPaymentNotFound) {
 			return nil, fmt.Errorf("%w: %w", ErrPaymentNotFound, err)
 		}
 		return nil, fmt.Errorf("%w: failed to retrieve payment by transaction hash: %w", ErrPaymentServiceError, err)
@@ -131,12 +129,12 @@ func (s *paymentServiceImpl) GetPaymentByTransactionHash(
 func (s *paymentServiceImpl) ListPaymentsByAddress(
 	ctx context.Context,
 	address string,
-) ([]*payment.Payment, error) {
+) ([]*Payment, error) {
 	if address == "" {
 		return nil, fmt.Errorf("%w: address cannot be empty", ErrInvalidRequest)
 	}
 
-	paymentAddress, err := payment.NewPaymentAddress(address)
+	paymentAddress, err := NewPaymentAddress(address)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPaymentAddress, err)
 	}
@@ -152,8 +150,8 @@ func (s *paymentServiceImpl) ListPaymentsByAddress(
 // ListPaymentsByStatus retrieves all payments with the given status.
 func (s *paymentServiceImpl) ListPaymentsByStatus(
 	ctx context.Context,
-	status payment.PaymentStatus,
-) ([]*payment.Payment, error) {
+	status PaymentStatus,
+) ([]*Payment, error) {
 	payments, err := s.repo.FindByStatus(ctx, status)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to retrieve payments by status: %w", ErrPaymentServiceError, err)
@@ -163,7 +161,7 @@ func (s *paymentServiceImpl) ListPaymentsByStatus(
 }
 
 // ListPendingPayments retrieves all pending payments (detected or confirming).
-func (s *paymentServiceImpl) ListPendingPayments(ctx context.Context) ([]*payment.Payment, error) {
+func (s *paymentServiceImpl) ListPendingPayments(ctx context.Context) ([]*Payment, error) {
 	payments, err := s.repo.FindPending(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to retrieve pending payments: %w", ErrPaymentServiceError, err)
@@ -173,7 +171,7 @@ func (s *paymentServiceImpl) ListPendingPayments(ctx context.Context) ([]*paymen
 }
 
 // ListConfirmedPayments retrieves all confirmed payments.
-func (s *paymentServiceImpl) ListConfirmedPayments(ctx context.Context) ([]*payment.Payment, error) {
+func (s *paymentServiceImpl) ListConfirmedPayments(ctx context.Context) ([]*Payment, error) {
 	payments, err := s.repo.FindConfirmed(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to retrieve confirmed payments: %w", ErrPaymentServiceError, err)
@@ -183,7 +181,7 @@ func (s *paymentServiceImpl) ListConfirmedPayments(ctx context.Context) ([]*paym
 }
 
 // ListFailedPayments retrieves all failed payments.
-func (s *paymentServiceImpl) ListFailedPayments(ctx context.Context) ([]*payment.Payment, error) {
+func (s *paymentServiceImpl) ListFailedPayments(ctx context.Context) ([]*Payment, error) {
 	payments, err := s.repo.FindFailed(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to retrieve failed payments: %w", ErrPaymentServiceError, err)
@@ -193,7 +191,7 @@ func (s *paymentServiceImpl) ListFailedPayments(ctx context.Context) ([]*payment
 }
 
 // ListOrphanedPayments retrieves all orphaned payments.
-func (s *paymentServiceImpl) ListOrphanedPayments(ctx context.Context) ([]*payment.Payment, error) {
+func (s *paymentServiceImpl) ListOrphanedPayments(ctx context.Context) ([]*Payment, error) {
 	payments, err := s.repo.FindOrphaned(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to retrieve orphaned payments: %w", ErrPaymentServiceError, err)
@@ -202,7 +200,7 @@ func (s *paymentServiceImpl) ListOrphanedPayments(ctx context.Context) ([]*payme
 	return payments, nil
 }
 
-// UpdatePaymentConfirmations updates the confirmation count for a payment.
+// UpdatePaymentConfirmations updates the confirmation count for a
 func (s *paymentServiceImpl) UpdatePaymentConfirmations(
 	ctx context.Context,
 	id string,
@@ -218,7 +216,7 @@ func (s *paymentServiceImpl) UpdatePaymentConfirmations(
 	// Get the payment
 	paymentEntity, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, payment.ErrPaymentNotFound) {
+		if errors.Is(err, ErrPaymentNotFound) {
 			return fmt.Errorf("%w: %w", ErrPaymentNotFound, err)
 		}
 		return fmt.Errorf("%w: failed to retrieve payment: %w", ErrPaymentServiceError, err)
@@ -239,55 +237,55 @@ func (s *paymentServiceImpl) UpdatePaymentConfirmations(
 
 // MarkPaymentAsDetected marks a payment as detected (from orphaned state).
 func (s *paymentServiceImpl) MarkPaymentAsDetected(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionBackToDetected(ctx)
 	})
 }
 
 // MarkPaymentAsIncluded marks a payment as included in a block.
 func (s *paymentServiceImpl) MarkPaymentAsIncluded(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionToConfirming(ctx)
 	})
 }
 
 // MarkPaymentAsConfirmed marks a payment as confirmed.
 func (s *paymentServiceImpl) MarkPaymentAsConfirmed(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionToConfirmed(ctx)
 	})
 }
 
 // MarkPaymentAsFailed marks a payment as failed.
 func (s *paymentServiceImpl) MarkPaymentAsFailed(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionToFailed(ctx)
 	})
 }
 
 // MarkPaymentAsOrphaned marks a payment as orphaned.
 func (s *paymentServiceImpl) MarkPaymentAsOrphaned(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionToOrphaned(ctx)
 	})
 }
 
 // MarkPaymentAsBackToMempool marks a payment as back to mempool.
 func (s *paymentServiceImpl) MarkPaymentAsBackToMempool(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionBackToDetected(ctx)
 	})
 }
 
 // MarkPaymentAsDropped marks a payment as dropped.
 func (s *paymentServiceImpl) MarkPaymentAsDropped(ctx context.Context, id string) error {
-	return s.transitionPayment(ctx, id, func(p *payment.Payment) error {
+	return s.transitionPayment(ctx, id, func(p *Payment) error {
 		return p.TransitionToDropped(ctx)
 	})
 }
 
 // GetPaymentStatistics returns payment statistics by status.
-func (s *paymentServiceImpl) GetPaymentStatistics(ctx context.Context) (map[payment.PaymentStatus]int, error) {
+func (s *paymentServiceImpl) GetPaymentStatistics(ctx context.Context) (map[PaymentStatus]int, error) {
 	stats, err := s.repo.CountByStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to retrieve payment statistics: %w", ErrPaymentServiceError, err)
@@ -300,7 +298,7 @@ func (s *paymentServiceImpl) GetPaymentStatistics(ctx context.Context) (map[paym
 func (s *paymentServiceImpl) transitionPayment(
 	ctx context.Context,
 	id string,
-	transition func(*payment.Payment) error,
+	transition func(*Payment) error,
 ) error {
 	if id == "" {
 		return fmt.Errorf("%w: payment ID cannot be empty", ErrInvalidRequest)
@@ -309,7 +307,7 @@ func (s *paymentServiceImpl) transitionPayment(
 	// Get the payment
 	paymentEntity, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, payment.ErrPaymentNotFound) {
+		if errors.Is(err, ErrPaymentNotFound) {
 			return fmt.Errorf("%w: %w", ErrPaymentNotFound, err)
 		}
 		return fmt.Errorf("%w: failed to retrieve payment: %w", ErrPaymentServiceError, err)

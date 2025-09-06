@@ -35,8 +35,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    profiles:
-      - redis
 
   postgres:
     image: postgres:15-alpine
@@ -57,8 +55,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    profiles:
-      - postgres
 
 volumes:
   redis_data:

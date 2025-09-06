@@ -7,6 +7,7 @@ server:
 
 log:
   level: "info"
+  dir: "logs"
 # Example of additional configuration sections that can be added later
 # database:
 #   host: "localhost"

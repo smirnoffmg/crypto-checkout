@@ -2,7 +2,6 @@ package invoice
 
 import (
 	"context"
-	"errors"
 )
 
 // Repository defines the interface for invoice data persistence.
@@ -34,11 +33,3 @@ type Repository interface {
 	// Exists checks if an invoice with the given ID exists.
 	Exists(ctx context.Context, id string) (bool, error)
 }
-
-// Common repository errors.
-var (
-	ErrInvoiceNotFound      = errors.New("invoice not found")
-	ErrInvoiceAlreadyExists = errors.New("invoice already exists")
-	ErrInvalidInvoice       = errors.New("invalid invoice")
-	ErrRepositoryError      = errors.New("repository error")
-)

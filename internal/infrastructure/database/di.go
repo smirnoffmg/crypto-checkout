@@ -6,15 +6,13 @@ import (
 
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/payment"
-	"crypto-checkout/internal/pkg/config"
+	"crypto-checkout/pkg/config"
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
 // Module provides database-related dependencies for Fx.
-//
-//nolint:gochecknoglobals // Fx modules must be global variables per Uber Fx documentation
 var Module = fx.Module("database",
 	fx.Provide(
 		NewDatabaseConnection,
@@ -39,6 +37,7 @@ func NewDatabaseConnection(cfg *config.Config, logger *zap.Logger) (*Connection,
 		Password: cfg.Database.Password,
 		DBName:   cfg.Database.DBName,
 		SSLMode:  cfg.Database.SSLMode,
+		URL:      cfg.Database.URL, // Include the URL field
 	}
 
 	conn, err := NewConnection(dbConfig)

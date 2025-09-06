@@ -1,5 +1,22 @@
 # Payment Status Management
 
+- [Payment Status Management](#payment-status-management)
+  - [Overview](#overview)
+  - [Payment vs Invoice Status](#payment-vs-invoice-status)
+  - [Payment Status Definitions](#payment-status-definitions)
+  - [Payment State Transitions](#payment-state-transitions)
+    - [Valid Transitions](#valid-transitions)
+    - [Forbidden Transitions](#forbidden-transitions)
+  - [Confirmation Requirements](#confirmation-requirements)
+    - [Tron Network (TRC-20 USDT)](#tron-network-trc-20-usdt)
+  - [Monitoring \& Alerts](#monitoring--alerts)
+    - [Payment-Specific Metrics](#payment-specific-metrics)
+  - [Payment Processing Flow](#payment-processing-flow)
+    - [1. Transaction Detection](#1-transaction-detection)
+    - [2. Confirmation Tracking](#2-confirmation-tracking)
+    - [3. Final Confirmation](#3-final-confirmation)
+    - [4. Failure Handling](#4-failure-handling)
+
 ## Overview
 
 While invoice statuses track business logic, payment statuses track individual blockchain transactions. One invoice can have multiple payments (partial payments, overpayments), each with their own blockchain lifecycle.

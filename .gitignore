@@ -122,3 +122,4 @@ bin/
 *.db
 *.sqlite
 *.sqlite3
+logs/

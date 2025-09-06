@@ -7,34 +7,20 @@ import (
 	"github.com/qmuntal/stateless"
 )
 
-// InvoiceTrigger represents the triggers that can cause state transitions.
-//
-//nolint:revive // Domain-specific naming convention
 type InvoiceTrigger string
 
-// Invoice trigger constants.
 const (
-	// TriggerViewed represents when a customer views the invoice.
-	TriggerViewed InvoiceTrigger = "viewed"
-	// TriggerPartial represents when partial payment is received.
-	TriggerPartial InvoiceTrigger = "partial"
-	// TriggerCompleted represents when full payment is received.
+	TriggerViewed    InvoiceTrigger = "viewed"
+	TriggerPartial   InvoiceTrigger = "partial"
 	TriggerCompleted InvoiceTrigger = "completed"
-	// TriggerConfirmed represents when payment is confirmed.
 	TriggerConfirmed InvoiceTrigger = "confirmed"
-	// TriggerExpired represents when an invoice expires.
-	TriggerExpired InvoiceTrigger = "expired"
-	// TriggerCancelled represents when an invoice is cancelled.
+	TriggerExpired   InvoiceTrigger = "expired"
 	TriggerCancelled InvoiceTrigger = "cancelled"
-	// TriggerRefunded represents when an invoice is refunded.
-	TriggerRefunded InvoiceTrigger = "refunded"
-	// TriggerReorg represents when a blockchain reorganization occurs.
-	TriggerReorg InvoiceTrigger = "reorg"
+	TriggerRefunded  InvoiceTrigger = "refunded"
+	TriggerReorg     InvoiceTrigger = "reorg"
 )
 
 // InvoiceStatusFSM manages invoice status transitions using a finite state machine.
-//
-//nolint:revive // Domain-specific naming convention
 type InvoiceStatusFSM struct {
 	machine *stateless.StateMachine
 }

@@ -1,12 +1,3 @@
-# This file is licensed under the terms of the MIT license https://opensource.org/license/mit
-# Copyright (c) 2021-2025 Marat Reymers
-
-## Golden config for golangci-lint v2.4.0 (improved for crypto-checkout)
-#
-# This config is strict but practical, with additional focus on
-# security, maintainability, and auditability (important for fintech/crypto).
-# Based on https://gist.github.com/maratori/47a4d00457a92aa426dbd48a18776322
-
 version: "2"
 
 run:
@@ -57,7 +48,6 @@ linters:
     - gocognit
     - goconst
     - gocritic
-    - godot
     - gomoddirectives
     - goprintffuncname
     - gosec
@@ -223,33 +213,37 @@ linters:
     usetesting:
       os-temp-dir: true
 
-exclusions:
-  warn-unused: true
-  presets:
-    - std-error-handling
-    - common-false-positives
-  rules:
-    - source: "TODO"
-      linters: [godot]
-    - text: "should have a package comment"
-      linters: [revive]
-    - text: 'exported \S+ \S+ should have comment( \(or a comment on this block\))? or be unexported'
-      linters: [revive]
-    - text: 'package comment should be of the form ".+"'
-      source: "// ?(nolint|TODO)"
-      linters: [revive]
-    - text: 'comment on exported \S+ \S+ should be of the form ".+"'
-      source: "// ?(nolint|TODO)"
-      linters: [revive, staticcheck]
-    - text: "Module is a global variable"
-      linters: [gochecknoglobals]
-    - path: '_test\.go'
-      linters:
-        - bodyclose
-        - dupl
-        - errcheck
-        - funlen
-        - goconst
-        - gosec
-        - noctx
-        - wrapcheck
+  exclusions:
+    warn-unused: true
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      - source: "TODO"
+        linters: [godot]
+      - text: "should have a package comment"
+        linters: [revive]
+      - text: 'exported \S+ \S+ should have comment( \(or a comment on this block\))? or be unexported'
+        linters: [revive]
+      - text: 'package comment should be of the form ".+"'
+        source: "// ?(nolint|TODO)"
+        linters: [revive]
+      - text: 'comment on exported \S+ \S+ should be of the form ".+"'
+        source: "// ?(nolint|TODO)"
+        linters: [revive, staticcheck]
+      - text: "Module is a global variable"
+        linters: [gochecknoglobals]
+      - path: '_test\.go'
+        linters:
+          - bodyclose
+          - godot
+          - dupl
+          - errcheck
+          - funlen
+          - goconst
+          - gosec
+          - noctx
+          - wrapcheck
+      - path: "test/e2e"
+        linters:
+          - paralleltest

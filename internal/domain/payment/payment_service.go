@@ -1,26 +1,11 @@
 // Package service provides application services for business logic orchestration.
-package service
+package payment
 
 import (
 	"context"
-	"errors"
-
-	"crypto-checkout/internal/domain/payment"
 )
 
-// ErrPaymentServiceError represents a generic error within the payment service.
-var ErrPaymentServiceError = errors.New("payment service error")
-
-// ErrPaymentNotFound indicates that the requested payment was not found.
-var ErrPaymentNotFound = errors.New("payment not found")
-
-// ErrInvalidTransactionHash indicates that the provided transaction hash is invalid.
-var ErrInvalidTransactionHash = errors.New("invalid transaction hash")
-
-// ErrInvalidAmount indicates that the provided amount is invalid.
-var ErrInvalidAmount = errors.New("invalid amount")
-
-// CreatePaymentRequest represents a request to create a new payment.
+// CreatePaymentRequest represents a request to create a new
 type CreatePaymentRequest struct {
 	Amount          string `json:"amount"`
 	Address         string `json:"address"`
@@ -34,34 +19,33 @@ type UpdatePaymentConfirmationsRequest struct {
 
 // PaymentService defines the interface for payment-related business operations.
 type PaymentService interface {
-	// CreatePayment creates a new payment.
-	CreatePayment(ctx context.Context, req CreatePaymentRequest) (*payment.Payment, error)
+	CreatePayment(ctx context.Context, req CreatePaymentRequest) (*Payment, error)
 
 	// GetPayment retrieves a payment by its ID.
-	GetPayment(ctx context.Context, id string) (*payment.Payment, error)
+	GetPayment(ctx context.Context, id string) (*Payment, error)
 
 	// GetPaymentByTransactionHash retrieves a payment by its transaction hash.
-	GetPaymentByTransactionHash(ctx context.Context, hash string) (*payment.Payment, error)
+	GetPaymentByTransactionHash(ctx context.Context, hash string) (*Payment, error)
 
 	// ListPaymentsByAddress retrieves all payments for a given address.
-	ListPaymentsByAddress(ctx context.Context, address string) ([]*payment.Payment, error)
+	ListPaymentsByAddress(ctx context.Context, address string) ([]*Payment, error)
 
 	// ListPaymentsByStatus retrieves all payments with the given status.
-	ListPaymentsByStatus(ctx context.Context, status payment.PaymentStatus) ([]*payment.Payment, error)
+	ListPaymentsByStatus(ctx context.Context, status PaymentStatus) ([]*Payment, error)
 
 	// ListPendingPayments retrieves all pending payments (detected or confirming).
-	ListPendingPayments(ctx context.Context) ([]*payment.Payment, error)
+	ListPendingPayments(ctx context.Context) ([]*Payment, error)
 
 	// ListConfirmedPayments retrieves all confirmed payments.
-	ListConfirmedPayments(ctx context.Context) ([]*payment.Payment, error)
+	ListConfirmedPayments(ctx context.Context) ([]*Payment, error)
 
 	// ListFailedPayments retrieves all failed payments.
-	ListFailedPayments(ctx context.Context) ([]*payment.Payment, error)
+	ListFailedPayments(ctx context.Context) ([]*Payment, error)
 
 	// ListOrphanedPayments retrieves all orphaned payments.
-	ListOrphanedPayments(ctx context.Context) ([]*payment.Payment, error)
+	ListOrphanedPayments(ctx context.Context) ([]*Payment, error)
 
-	// UpdatePaymentConfirmations updates the confirmation count for a payment.
+	// UpdatePaymentConfirmations updates the confirmation count for a
 	UpdatePaymentConfirmations(ctx context.Context, id string, req UpdatePaymentConfirmationsRequest) error
 
 	// MarkPaymentAsDetected marks a payment as detected.
@@ -86,5 +70,5 @@ type PaymentService interface {
 	MarkPaymentAsDropped(ctx context.Context, id string) error
 
 	// GetPaymentStatistics returns payment statistics by status.
-	GetPaymentStatistics(ctx context.Context) (map[payment.PaymentStatus]int, error)
+	GetPaymentStatistics(ctx context.Context) (map[PaymentStatus]int, error)
 }

@@ -1,29 +1,25 @@
-// Package service provides application services for business logic orchestration.
-package service
+package invoice
 
 import (
 	"context"
-	"errors"
-
-	"crypto-checkout/internal/domain/invoice"
 )
 
 // InvoiceService defines the interface for invoice business operations.
 type InvoiceService interface {
 	// CreateInvoice creates a new invoice with the given items and tax rate.
-	CreateInvoice(ctx context.Context, req CreateInvoiceRequest) (*invoice.Invoice, error)
+	CreateInvoice(ctx context.Context, req CreateInvoiceRequest) (*Invoice, error)
 
 	// GetInvoice retrieves an invoice by its ID.
-	GetInvoice(ctx context.Context, id string) (*invoice.Invoice, error)
+	GetInvoice(ctx context.Context, id string) (*Invoice, error)
 
 	// GetInvoiceByPaymentAddress retrieves an invoice by its payment address.
-	GetInvoiceByPaymentAddress(ctx context.Context, address string) (*invoice.Invoice, error)
+	GetInvoiceByPaymentAddress(ctx context.Context, address string) (*Invoice, error)
 
 	// ListInvoicesByStatus retrieves all invoices with the given status.
-	ListInvoicesByStatus(ctx context.Context, status invoice.InvoiceStatus) ([]*invoice.Invoice, error)
+	ListInvoicesByStatus(ctx context.Context, status InvoiceStatus) ([]*Invoice, error)
 
 	// ListActiveInvoices retrieves all active (non-terminal) invoices.
-	ListActiveInvoices(ctx context.Context) ([]*invoice.Invoice, error)
+	ListActiveInvoices(ctx context.Context) ([]*Invoice, error)
 
 	// AssignPaymentAddress assigns a payment address to an invoice.
 	AssignPaymentAddress(ctx context.Context, id string, address string) error
@@ -65,12 +61,3 @@ type CreateInvoiceItemRequest struct {
 	UnitPrice   string `json:"unit_price"` // USDT amount as decimal string
 	Quantity    string `json:"quantity"`   // Decimal string like "2.5"
 }
-
-// Common service errors.
-var (
-	ErrInvoiceServiceError   = errors.New("invoice service error")
-	ErrInvalidRequest        = errors.New("invalid request")
-	ErrInvoiceNotFound       = errors.New("invoice not found")
-	ErrInvalidPaymentAddress = errors.New("invalid payment address")
-	ErrInvalidTransition     = errors.New("invalid status transition")
-)

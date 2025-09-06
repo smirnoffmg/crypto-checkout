@@ -2,7 +2,6 @@ package payment
 
 import (
 	"context"
-	"errors"
 )
 
 // Repository defines the interface for payment data persistence.
@@ -46,11 +45,3 @@ type Repository interface {
 	// CountByStatus returns the count of payments for each status.
 	CountByStatus(ctx context.Context) (map[PaymentStatus]int, error)
 }
-
-// Common repository errors.
-var (
-	ErrPaymentNotFound      = errors.New("payment not found")
-	ErrPaymentAlreadyExists = errors.New("payment already exists")
-	ErrInvalidPayment       = errors.New("invalid payment")
-	ErrRepositoryError      = errors.New("repository error")
-)

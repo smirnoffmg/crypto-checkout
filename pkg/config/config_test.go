@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"crypto-checkout/internal/pkg/config"
+	"crypto-checkout/pkg/config"
 )
 
 func TestConfig(t *testing.T) {

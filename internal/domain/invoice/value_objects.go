@@ -38,6 +38,14 @@ func NewUSDTAmount(value string) (*USDTAmount, error) {
 	return &USDTAmount{value: parsed}, nil
 }
 
+func MustNewUSDTAmount(value string) *USDTAmount {
+	amount, err := NewUSDTAmount(value)
+	if err != nil {
+		panic(err)
+	}
+	return amount
+}
+
 // String returns the string representation of the amount.
 func (a *USDTAmount) String() string {
 	return a.value.StringFixed(USDTDecimalPlaces)

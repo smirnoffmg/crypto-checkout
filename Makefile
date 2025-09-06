@@ -1,4 +1,4 @@
-.PHONY: help build test lint clean run docker-test docker-up docker-down
+.PHONY: help build test lint clean run up down logs ps
 
 # Default target
 help:
@@ -9,8 +9,10 @@ help:
 	@echo "  clean       - Clean build artifacts"
 	@echo "  run         - Run the application"
 	@echo "  dev         - Run with hot reload"
-	@echo "  up   - Start all services with Docker Compose"
-	@echo "  down - Stop all Docker Compose services"
+	@echo "  up     - Start all services with Docker Compose"
+	@echo "  down   - Stop all Docker Compose services"
+	@echo "  logs   - Show logs for all services"
+	@echo "  ps     - Show running containers"
 
 # Build the application
 build:
@@ -18,7 +20,7 @@ build:
 
 # Run tests
 test:
-	go test -v -race -cover ./...
+	gotestsum --hide-summary=output --format-icons=hivis
 
 # Run tests in parallel
 test-parallel:
@@ -43,9 +45,16 @@ run: build
 
 up:
 	@echo "Starting all services with Docker Compose..."
-	docker compose up -d
+	docker compose --env-file env.dev up -d
 
 down:
 	@echo "Stopping all Docker Compose services..."
-	docker compose down
-	docker compose -f docker-compose.test.yml down
+	docker compose --env-file env.dev down
+
+logs:
+	@echo "Showing logs for all services..."
+	docker compose --env-file env.dev logs -f
+
+ps:
+	@echo "Showing running containers..."
+	docker compose --env-file env.dev ps

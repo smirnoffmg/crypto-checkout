@@ -10,7 +10,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Invoice represents a payment invoice for USDT payments.
+const (
+	// DefaultInvoiceExpirationDuration is the default time after which an invoice expires.
+	DefaultInvoiceExpirationDuration = 30 * time.Minute
+)
+
 type Invoice struct {
 	id             string
 	items          []*InvoiceItem
@@ -47,6 +51,20 @@ func (i *Invoice) ID() string {
 	return i.id
 }
 
+// SetID sets the invoice ID (used for reconstruction from database).
+func (i *Invoice) SetID(id string) error {
+	if id == "" {
+		return errors.New("invoice ID cannot be empty")
+	}
+	i.id = id
+	return nil
+}
+
+// SetStatusFSM sets the status FSM (used for reconstruction from database).
+func (i *Invoice) SetStatusFSM(fsm *InvoiceStatusFSM) {
+	i.statusFSM = fsm
+}
+
 // Items returns the invoice items.
 func (i *Invoice) Items() []*InvoiceItem {
 	return i.items
@@ -70,6 +88,11 @@ func (i *Invoice) PaymentAddress() *PaymentAddress {
 // CreatedAt returns the creation timestamp.
 func (i *Invoice) CreatedAt() time.Time {
 	return i.createdAt
+}
+
+// ExpiresAt returns the expiration timestamp (30 minutes after creation by default).
+func (i *Invoice) ExpiresAt() time.Time {
+	return i.createdAt.Add(DefaultInvoiceExpirationDuration)
 }
 
 // PaidAt returns the payment timestamp.
