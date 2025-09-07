@@ -493,8 +493,24 @@ func TestStatusTransition(t *testing.T) {
 	})
 
 	t.Run("Equals", func(t *testing.T) {
-		transition1 := invoice.NewStatusTransition(invoice.StatusCreated, invoice.StatusPending, "test reason", invoice.ActorCustomer, nil)
-		transition2 := invoice.NewStatusTransition(invoice.StatusCreated, invoice.StatusPending, "test reason", invoice.ActorCustomer, nil)
+		// Create transitions with the same timestamp to test equality
+		now := time.Now().UTC()
+		transition1 := &invoice.StatusTransition{
+			FromStatus: invoice.StatusCreated,
+			ToStatus:   invoice.StatusPending,
+			Timestamp:  now,
+			Reason:     "test reason",
+			Actor:      invoice.ActorCustomer,
+			Metadata:   nil,
+		}
+		transition2 := &invoice.StatusTransition{
+			FromStatus: invoice.StatusCreated,
+			ToStatus:   invoice.StatusPending,
+			Timestamp:  now,
+			Reason:     "test reason",
+			Actor:      invoice.ActorCustomer,
+			Metadata:   nil,
+		}
 		transition3 := invoice.NewStatusTransition(invoice.StatusPending, invoice.StatusPaid, "different reason", invoice.ActorSystem, nil)
 
 		require.True(t, transition1.Equals(transition2))
@@ -583,7 +599,7 @@ func createTestInvoice() *invoice.Invoice {
 	expiration := invoice.NewInvoiceExpiration(24 * time.Hour)
 
 	// Create invoice
-	testInvoice, _ := invoice.NewInvoice(
+	testInvoice, err := invoice.NewInvoice(
 		"test-invoice-id",
 		"test-merchant-id",
 		"Test Invoice",
@@ -597,6 +613,9 @@ func createTestInvoice() *invoice.Invoice {
 		expiration,
 		nil,
 	)
+	if err != nil {
+		panic(err)
+	}
 
 	return testInvoice
 }

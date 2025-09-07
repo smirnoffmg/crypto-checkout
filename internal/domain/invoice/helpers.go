@@ -46,7 +46,7 @@ func IsInvoiceExpired(invoice *Invoice) bool {
 	if invoice == nil {
 		return false
 	}
-	return invoice.IsExpired()
+	return invoice.Expiration().IsExpired()
 }
 
 // GetInvoiceTimeRemaining returns the time remaining until invoice expiration.
@@ -179,8 +179,8 @@ func GetInvoiceSummary(invoice *Invoice) *InvoiceSummary {
 		CryptoCurrency: invoice.CryptoCurrency().String(),
 		ExpiresAt:      invoice.Expiration().ExpiresAt(),
 		TimeRemaining:  GetInvoiceTimeRemaining(invoice),
-		IsExpired:      invoice.IsExpired(),
-		IsActive:       invoice.IsActive(),
+		IsExpired:      invoice.Expiration().IsExpired(),
+		IsActive:       invoice.Status().IsActive(),
 		CreatedAt:      invoice.CreatedAt(),
 		UpdatedAt:      invoice.UpdatedAt(),
 		PaidAt:         invoice.PaidAt(),

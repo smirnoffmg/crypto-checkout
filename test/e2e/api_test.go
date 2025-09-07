@@ -43,13 +43,17 @@ func TestCreateInvoiceE2E(t *testing.T) {
 
 	// Create invoice request
 	requestBody := map[string]interface{}{
+		"title":       "VPN Service Order",
+		"description": "Annual VPN subscription with premium support",
 		"items": []map[string]interface{}{
 			{
+				"name":        "VPN Service - 1 Year",
 				"description": "VPN Service - 1 Year",
 				"unit_price":  "99.99",
 				"quantity":    "1",
 			},
 			{
+				"name":        "Premium Support",
 				"description": "Premium Support",
 				"unit_price":  "19.99",
 				"quantity":    "1",
@@ -103,8 +107,11 @@ func TestGetInvoiceE2E(t *testing.T) {
 
 	// First create an invoice
 	requestBody := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test invoice for E2E testing",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "50.00",
 				"quantity":    "1",
@@ -170,8 +177,11 @@ func TestGetPublicInvoiceE2E(t *testing.T) {
 
 	// First create an invoice
 	requestBody := map[string]interface{}{
+		"title":       "Public Test Invoice",
+		"description": "Test invoice for public API testing",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Public Test Item",
 				"description": "Public Test Item",
 				"unit_price":  "25.00",
 				"quantity":    "2",
@@ -229,8 +239,11 @@ func TestGetInvoiceQRE2E(t *testing.T) {
 
 	// First create an invoice
 	requestBody := map[string]interface{}{
+		"title":       "QR Test Invoice",
+		"description": "Test invoice for QR code testing",
 		"items": []map[string]interface{}{
 			{
+				"name":        "QR Test Item",
 				"description": "QR Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -262,24 +275,19 @@ func TestGetInvoiceQRE2E(t *testing.T) {
 	invoiceID := createResponse["id"].(string)
 	require.NotEmpty(t, invoiceID)
 
-	// Now get the QR code - this will fail because invoice has no payment address
+	// Now get the QR code - this should succeed now that invoices have payment addresses
 	qrResp, err := http.Get(baseURL + "/invoice/" + invoiceID + "/qr")
 	require.NoError(t, err)
 	defer qrResp.Body.Close()
 
-	// QR code generation fails because invoice has no payment address assigned
-	// This is expected behavior - invoices need payment addresses to generate QR codes
-	require.Equal(t, http.StatusInternalServerError, qrResp.StatusCode)
+	// QR code generation should succeed now that invoices have payment addresses
+	require.Equal(t, http.StatusOK, qrResp.StatusCode)
 
-	// Verify error response
-	errorBody, err := io.ReadAll(qrResp.Body)
+	// Verify QR code response (should be an image)
+	qrBody, err := io.ReadAll(qrResp.Body)
 	require.NoError(t, err)
 
-	var errorResponse map[string]interface{}
-	err = json.Unmarshal(errorBody, &errorResponse)
-	require.NoError(t, err)
-
-	require.Contains(t, errorResponse, "error")
-	// The error message might be in different formats, so let's check for the key presence
-	require.NotNil(t, errorResponse["error"])
+	// QR code should be a PNG image (not empty)
+	require.NotEmpty(t, qrBody)
+	require.Greater(t, len(qrBody), 100) // PNG files are typically larger than 100 bytes
 }

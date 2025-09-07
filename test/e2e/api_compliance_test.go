@@ -6,9 +6,11 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"crypto-checkout/test/testutil"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -166,9 +168,8 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 				var errorResponse map[string]interface{}
 				if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
 					// Current implementation error response structure
-					if !require.Contains(t, errorResponse, "error", "Error response should contain 'error' field. Response: %s", string(body)) {
-						t.Logf("Full error response: %+v", errorResponse)
-					}
+					assert.Contains(t, errorResponse, "error", "Error response should contain 'error' field. Response: %s", string(body))
+					t.Logf("Full error response: %+v", errorResponse)
 
 					// TODO: When API.md error structure is implemented, check for:
 					// - error.type
@@ -197,10 +198,16 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 func TestAPIComplianceContentTypes(t *testing.T) {
 	baseURL := testutil.SetupTestApp(t)
 
+	// Wait for server to be ready by making a health check first
+	waitForServerReady(t, baseURL)
+
 	// Create an invoice first
 	createReq := map[string]interface{}{
+		"title":       "API Compliance Test Invoice",
+		"description": "Test invoice for API compliance testing",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -468,8 +475,11 @@ func makeValidInvoiceRequestWithAuth(t *testing.T, baseURL, path string, needsAu
 	t.Helper()
 
 	createReq := map[string]interface{}{
+		"title":       "Status Code Test Invoice",
+		"description": "Test invoice for status code testing",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -510,13 +520,17 @@ func TestAPIComplianceInvoiceStructure(t *testing.T) {
 
 	// Create invoice with multiple items as per API.md example
 	createReq := map[string]interface{}{
+		"title":       "VPN Premium Plan Invoice",
+		"description": "Premium VPN service with additional static IPs",
 		"items": []map[string]interface{}{
 			{
+				"name":        "VPN Premium Plan",
 				"description": "VPN Premium Plan",
 				"unit_price":  "9.99",
 				"quantity":    "1",
 			},
 			{
+				"name":        "Additional Static IP",
 				"description": "Additional Static IP",
 				"unit_price":  "2.50",
 				"quantity":    "2",
@@ -558,53 +572,39 @@ func TestAPIComplianceInvoiceStructure(t *testing.T) {
 	}
 
 	for _, field := range requiredFields {
-		if !require.Contains(t, response, field, "Response should contain %s field. Full response: %+v", field, response) {
-			t.Logf("Missing field '%s' in invoice response. Available fields: %v", field, getMapKeys(response))
-		}
+		require.Contains(t, response, field, "Response should contain %s field. Full response: %+v", field, response)
+		t.Logf("Field '%s' found in invoice response", field)
 	}
 
 	// Verify items structure
 	items, ok := response["items"].([]interface{})
-	if !require.True(t, ok, "Items should be an array. Actual type: %T, Value: %+v", response["items"], response["items"]) {
-		t.Logf("Full response: %+v", response)
-	}
-	if !require.Len(t, items, 2, "Should have 2 items. Actual count: %d", len(items)) {
-		t.Logf("Items array: %+v", items)
-	}
+	require.True(t, ok, "Items should be an array. Actual type: %T, Value: %+v", response["items"], response["items"])
+	t.Logf("Items structure verified: %+v", response)
+	require.Len(t, items, 2, "Should have 2 items. Actual count: %d", len(items))
+	t.Logf("Items array length verified: %+v", items)
 
 	// Verify first item structure
 	if len(items) > 0 {
 		item1, ok := items[0].(map[string]interface{})
-		if !require.True(t, ok, "First item should be a map. Actual type: %T, Value: %+v", items[0], items[0]) {
-			t.Logf("Items array: %+v", items)
-		} else {
-			itemFields := []string{"description", "unit_price", "quantity", "total"}
-			for _, field := range itemFields {
-				if !require.Contains(t, item1, field, "Item should contain %s field. Item: %+v", field, item1) {
-					t.Logf("Available item fields: %v", getMapKeys(item1))
-				}
-			}
+		require.True(t, ok, "First item should be a map. Actual type: %T, Value: %+v", items[0], items[0])
+		t.Logf("First item structure verified: %+v", items)
+		itemFields := []string{"description", "unit_price", "quantity", "total"}
+		for _, field := range itemFields {
+			require.Contains(t, item1, field, "Item should contain %s field. Item: %+v", field, item1)
+			t.Logf("Item field '%s' verified", field)
 		}
 	}
 
 	// Verify status is created (transitions to pending after being viewed)
-	if !require.Equal(t, "created", response["status"], "New invoice should have created status. Actual status: %v", response["status"]) {
-		t.Logf("Full response: %+v", response)
-	}
+	require.Equal(t, "created", response["status"], "New invoice should have created status. Actual status: %v", response["status"])
+	t.Logf("Invoice status verified: %+v", response)
 
 	// Verify numeric fields are strings (as per API.md)
-	if !require.IsType(t, "", response["subtotal"], "Subtotal should be string. Actual type: %T, Value: %v", response["subtotal"], response["subtotal"]) {
-		t.Logf("Full response: %+v", response)
-	}
-	if !require.IsType(t, "", response["tax_amount"], "Tax amount should be string. Actual type: %T, Value: %v", response["tax_amount"], response["tax_amount"]) {
-		t.Logf("Full response: %+v", response)
-	}
-	if !require.IsType(t, "", response["total"], "Total should be string. Actual type: %T, Value: %v", response["total"], response["total"]) {
-		t.Logf("Full response: %+v", response)
-	}
-	if !require.IsType(t, "", response["tax_rate"], "Tax rate should be string. Actual type: %T, Value: %v", response["tax_rate"], response["tax_rate"]) {
-		t.Logf("Full response: %+v", response)
-	}
+	require.IsType(t, "", response["subtotal"], "Subtotal should be string. Actual type: %T, Value: %v", response["subtotal"], response["subtotal"])
+	require.IsType(t, "", response["tax_amount"], "Tax amount should be string. Actual type: %T, Value: %v", response["tax_amount"], response["tax_amount"])
+	require.IsType(t, "", response["total"], "Total should be string. Actual type: %T, Value: %v", response["total"], response["total"])
+	require.IsType(t, "", response["tax_rate"], "Tax rate should be string. Actual type: %T, Value: %v", response["tax_rate"], response["tax_rate"])
+	t.Logf("All numeric fields verified as strings")
 
 	// Log full response for debugging
 	t.Logf("Invoice structure test response: %+v", response)
@@ -619,6 +619,24 @@ func getMapKeys(m map[string]interface{}) []string {
 	return keys
 }
 
-// Helper function to create test logger.
+// waitForServerReady waits for the server to be ready by making health check requests.
+func waitForServerReady(t *testing.T, baseURL string) {
+	t.Helper()
 
-// Helper function to create test logger.
+	maxRetries := 10
+	retryDelay := 100 * time.Millisecond
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err := http.Get(baseURL + "/health")
+		if err == nil && resp.StatusCode == http.StatusOK {
+			resp.Body.Close()
+			return
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		time.Sleep(retryDelay)
+	}
+
+	t.Fatalf("Server not ready after %d retries", maxRetries)
+}

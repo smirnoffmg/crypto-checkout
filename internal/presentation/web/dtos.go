@@ -13,15 +13,42 @@ const (
 
 // CreateInvoiceRequest represents the request payload for creating an invoice.
 type CreateInvoiceRequest struct {
-	Items   []InvoiceItemRequest `binding:"required,min=1" json:"items"`
-	TaxRate string               `binding:"required"       json:"tax_rate"`
+	Title             string                   `binding:"required" json:"title"`
+	Description       string                   `json:"description"`
+	Items             []InvoiceItemRequest     `binding:"required,min=1" json:"items"`
+	Tax               *string                  `json:"tax,omitempty"` // Fixed tax amount (deprecated, use tax_rate)
+	TaxRate           string                   `json:"tax_rate"`      // Tax rate as decimal (e.g., "0.10" for 10%)
+	Currency          string                   `json:"currency,omitempty"`
+	CryptoCurrency    string                   `json:"crypto_currency,omitempty"`
+	PriceLockDuration *int                     `json:"price_lock_duration,omitempty"`
+	ExpiresIn         *int                     `json:"expires_in,omitempty"`
+	PaymentTolerance  *PaymentToleranceRequest `json:"payment_tolerance,omitempty"`
+	WebhookURL        *string                  `json:"webhook_url,omitempty"`
+	ReturnURL         *string                  `json:"return_url,omitempty"`
+	CancelURL         *string                  `json:"cancel_url,omitempty"`
+	Metadata          map[string]interface{}   `json:"metadata,omitempty"`
 }
 
 // InvoiceItemRequest represents an invoice item in the request.
 type InvoiceItemRequest struct {
-	Description string `binding:"required" json:"description"`
-	UnitPrice   string `binding:"required" json:"unit_price"`
+	Name        string `binding:"required" json:"name"`
+	Description string `json:"description"`
 	Quantity    string `binding:"required" json:"quantity"`
+	UnitPrice   string `binding:"required" json:"unit_price"`
+}
+
+// PaymentToleranceRequest represents payment tolerance settings.
+type PaymentToleranceRequest struct {
+	UnderpaymentThreshold string `json:"underpayment_threshold"`
+	OverpaymentThreshold  string `json:"overpayment_threshold"`
+	OverpaymentAction     string `json:"overpayment_action"`
+}
+
+// PaymentToleranceResponse represents payment tolerance settings in responses.
+type PaymentToleranceResponse struct {
+	UnderpaymentThreshold string `json:"underpayment_threshold"`
+	OverpaymentThreshold  string `json:"overpayment_threshold"`
+	OverpaymentAction     string `json:"overpayment_action"`
 }
 
 // CreateInvoiceResponse represents the response payload for creating an invoice.
@@ -41,10 +68,13 @@ type CreateInvoiceResponse struct {
 	Address     string    `json:"address"`
 	CustomerURL string    `json:"customer_url"`
 	ExpiresAt   time.Time `json:"expires_at"`
+	// Payment tolerance settings
+	PaymentTolerance *PaymentToleranceResponse `json:"payment_tolerance,omitempty"`
 }
 
 // InvoiceItemResponse represents an invoice item in the response.
 type InvoiceItemResponse struct {
+	Name        string `json:"name"`
 	Description string `json:"description"`
 	UnitPrice   string `json:"unit_price"`
 	Quantity    string `json:"quantity"`
@@ -206,10 +236,11 @@ func ToCreateInvoiceResponse(inv *invoice.Invoice) CreateInvoiceResponse {
 	items := make([]InvoiceItemResponse, len(inv.Items()))
 	for i, item := range inv.Items() {
 		items[i] = InvoiceItemResponse{
+			Name:        item.Name(),
 			Description: item.Description(),
-			UnitPrice:   item.UnitPrice().Amount().String(),
+			UnitPrice:   item.UnitPrice().String(),
 			Quantity:    item.Quantity().String(),
-			Total:       item.TotalPrice().Amount().String(),
+			Total:       item.TotalPrice().String(),
 		}
 	}
 
@@ -234,21 +265,33 @@ func ToCreateInvoiceResponse(inv *invoice.Invoice) CreateInvoiceResponse {
 		expiresAt = exp.ExpiresAt()
 	}
 
+	// Get payment tolerance settings
+	var paymentTolerance *PaymentToleranceResponse
+	if pt := inv.PaymentTolerance(); pt != nil {
+		paymentTolerance = &PaymentToleranceResponse{
+			UnderpaymentThreshold: pt.UnderpaymentThreshold().StringFixed(2),
+			OverpaymentThreshold:  pt.OverpaymentThreshold().StringFixed(2),
+			OverpaymentAction:     pt.OverpaymentAction().String(),
+		}
+	}
+
 	return CreateInvoiceResponse{
 		ID:             inv.ID(),
 		Items:          items,
-		Subtotal:       inv.Pricing().Subtotal().Amount().String(),
-		TaxAmount:      inv.Pricing().Tax().Amount().String(),
-		Total:          inv.Pricing().Total().Amount().String(),
+		Subtotal:       inv.Pricing().Subtotal().String(),
+		TaxAmount:      inv.Pricing().Tax().String(),
+		Total:          inv.Pricing().Total().String(),
 		TaxRate:        inv.Pricing().Tax().Amount().String(),
 		Status:         inv.Status().String(),
 		PaymentAddress: paymentAddress,
 		InvoiceURL:     "/api/v1/invoices/" + inv.ID(),
 		CreatedAt:      inv.CreatedAt(),
 		// API.md required fields
-		USDTAmount:  inv.Pricing().Total().Amount().String(), // 1:1 USD to USDT for now
+		USDTAmount:  inv.Pricing().Total().String(), // 1:1 USD to USDT for now
 		Address:     address,
 		CustomerURL: customerURL,
 		ExpiresAt:   expiresAt,
+		// Payment tolerance settings
+		PaymentTolerance: paymentTolerance,
 	}
 }

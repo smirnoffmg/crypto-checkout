@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -15,6 +16,20 @@ import (
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/shared"
 )
+
+// invoiceItemWrapper implements shared.InvoiceItem interface for DTO conversion
+type invoiceItemWrapper struct {
+	unitPrice  *shared.Money
+	totalPrice *shared.Money
+}
+
+func (w *invoiceItemWrapper) UnitPrice() *shared.Money {
+	return w.unitPrice
+}
+
+func (w *invoiceItemWrapper) TotalPrice() *shared.Money {
+	return w.totalPrice
+}
 
 const (
 	// QR code generation constants.
@@ -63,7 +78,14 @@ func (h *Handler) CreateInvoice(c *gin.Context) {
 	}
 
 	// Convert API request to service request
-	serviceReq := convertToServiceCreateInvoiceRequest(req)
+	serviceReq, err := convertToServiceCreateInvoiceRequest(req)
+	if err != nil {
+		h.Logger.Error("Failed to convert request", zap.Error(err))
+		if err := c.Error(err); err != nil {
+			h.Logger.Error("Failed to set error in context", zap.Error(err))
+		}
+		return
+	}
 
 	invoice, err := h.invoiceService.CreateInvoice(c.Request.Context(), &serviceReq)
 	if err != nil {
@@ -85,41 +107,114 @@ func (h *Handler) CreateInvoice(c *gin.Context) {
 }
 
 // convertToServiceCreateInvoiceRequest converts API request to service request.
-func convertToServiceCreateInvoiceRequest(req CreateInvoiceRequest) invoice.CreateInvoiceRequest {
+func convertToServiceCreateInvoiceRequest(req CreateInvoiceRequest) (invoice.CreateInvoiceRequest, error) {
 	items := make([]*invoice.CreateInvoiceItemRequest, len(req.Items))
 	for i, item := range req.Items {
 		// Parse unit price string to Money
 		unitPrice, err := shared.NewMoney(item.UnitPrice, shared.CurrencyUSD)
 		if err != nil {
-			// This should be handled by validation, but we'll create a default for now
-			unitPrice, _ = shared.NewMoney("0.00", shared.CurrencyUSD)
+			return invoice.CreateInvoiceRequest{}, invoice.ErrInvalidUnitPrice
 		}
 
 		items[i] = &invoice.CreateInvoiceItemRequest{
-			Name:        item.Description, // Using description as name for now
+			Name:        item.Name,
 			Description: item.Description,
-			UnitPrice:   unitPrice,
 			Quantity:    item.Quantity,
+			UnitPrice:   unitPrice,
 		}
 	}
 
-	// Parse tax rate to Money
-	taxAmount, err := shared.NewMoney(req.TaxRate, shared.CurrencyUSD)
+	// Calculate subtotal and tax using shared tax calculator
+	taxCalculator := shared.NewTaxCalculator()
+
+	// Convert DTO items to shared InvoiceItem interface
+	invoiceItems := make([]shared.InvoiceItem, len(items))
+	for i, item := range items {
+		quantity, err := decimal.NewFromString(item.Quantity)
+		if err != nil {
+			quantity = decimal.Zero
+		}
+		totalPrice, err := item.UnitPrice.Multiply(quantity)
+		if err != nil {
+			return invoice.CreateInvoiceRequest{}, err
+		}
+
+		invoiceItems[i] = &invoiceItemWrapper{
+			unitPrice:  item.UnitPrice,
+			totalPrice: totalPrice,
+		}
+	}
+
+	// Calculate subtotal
+	subtotalMoney, err := taxCalculator.CalculateSubtotal(invoiceItems)
 	if err != nil {
-		// Default to 0 tax
-		taxAmount, _ = shared.NewMoney("0.00", shared.CurrencyUSD)
+		return invoice.CreateInvoiceRequest{}, err
+	}
+
+	// Calculate tax amount
+	taxAmount, err := taxCalculator.CalculateTaxFromRate(req.TaxRate, subtotalMoney)
+	if err != nil {
+		return invoice.CreateInvoiceRequest{}, err
+	}
+
+	// Parse currency
+	currency := shared.CurrencyUSD
+	if req.Currency != "" {
+		currency = shared.Currency(req.Currency)
+	}
+
+	// Parse crypto currency
+	cryptoCurrency := shared.CryptoCurrencyUSDT
+	if req.CryptoCurrency != "" {
+		cryptoCurrency = shared.CryptoCurrency(req.CryptoCurrency)
+	}
+
+	// Parse payment tolerance
+	var paymentTolerance *invoice.PaymentTolerance
+	if req.PaymentTolerance != nil {
+		overpaymentAction := invoice.OverpaymentActionCredit
+		switch req.PaymentTolerance.OverpaymentAction {
+		case "credit_account":
+			overpaymentAction = invoice.OverpaymentActionCredit
+		case "refund":
+			overpaymentAction = invoice.OverpaymentActionRefund
+		case "donate":
+			overpaymentAction = invoice.OverpaymentActionDonate
+		}
+
+		var err error
+		paymentTolerance, err = invoice.NewPaymentTolerance(
+			req.PaymentTolerance.UnderpaymentThreshold,
+			req.PaymentTolerance.OverpaymentThreshold,
+			overpaymentAction,
+		)
+		if err != nil {
+			return invoice.CreateInvoiceRequest{}, fmt.Errorf("invalid payment tolerance: %w", err)
+		}
+	}
+
+	// Parse expiration duration
+	expirationDuration := 30 * time.Minute // Default 30 minutes
+	if req.ExpiresIn != nil {
+		expirationDuration = time.Duration(*req.ExpiresIn) * time.Second
 	}
 
 	return invoice.CreateInvoiceRequest{
-		MerchantID:     "test-merchant", // TODO: Get from authentication context
-		Title:          "Invoice",       // TODO: Get from request
-		Description:    "Generated invoice",
-		Items:          items,
-		Tax:            taxAmount,
-		Currency:       shared.CurrencyUSD,
-		CryptoCurrency: shared.CryptoCurrencyUSDT,
-		// TODO: Add other required fields
-	}
+		MerchantID:         "test-merchant", // TODO: Get from authentication context
+		CustomerID:         nil,             // TODO: Extract from metadata if present
+		Title:              req.Title,
+		Description:        req.Description,
+		Items:              items,
+		Tax:                taxAmount,
+		Currency:           currency,
+		CryptoCurrency:     cryptoCurrency,
+		PaymentTolerance:   paymentTolerance,
+		ExpirationDuration: expirationDuration,
+		Metadata:           req.Metadata,
+		WebhookURL:         req.WebhookURL,
+		ReturnURL:          req.ReturnURL,
+		CancelURL:          req.CancelURL,
+	}, nil
 }
 
 // validateCreateInvoiceRequest performs additional validation on the request.
@@ -319,4 +414,32 @@ func (h *Handler) getPublicInvoice(c *gin.Context) {
 
 	// Use Gin's HTML rendering
 	c.HTML(http.StatusOK, "crypto_invoice_page.html", templateData)
+}
+
+// ProcessExpiredInvoices processes all expired invoices (admin endpoint for testing)
+// @Summary Process expired invoices
+// @Description Manually trigger processing of expired invoices (admin endpoint)
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Processing completed"
+// @Router /api/v1/admin/process-expired-invoices [post]
+func (h *Handler) ProcessExpiredInvoices(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Process expired invoices
+	err := h.invoiceService.ProcessExpiredInvoices(ctx)
+	if err != nil {
+		h.Logger.Error("Failed to process expired invoices", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "PROCESSING_FAILED",
+			"message": "Failed to process expired invoices",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Expired invoices processed successfully",
+		"status":  "completed",
+	})
 }

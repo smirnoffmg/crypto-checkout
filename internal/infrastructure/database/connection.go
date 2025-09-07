@@ -77,11 +77,21 @@ func NewConnection(config config.DatabaseConfig) (*Connection, error) {
 	}
 
 	// Different connection pool settings for SQLite vs PostgreSQL
-	if config.URL != "" && strings.HasPrefix(config.URL, "sqlite://") {
-		// SQLite connection pool settings
-		sqlDB.SetMaxIdleConns(1)
-		sqlDB.SetMaxOpenConns(1)
-		sqlDB.SetConnMaxLifetime(0)
+	if config.URL != "" && (strings.HasPrefix(config.URL, "sqlite://") || strings.HasPrefix(config.URL, "file::memory:")) {
+		// SQLite connection pool settings - optimized for concurrency
+		// SQLite can handle multiple readers but limited concurrent writers
+		sqlDB.SetMaxIdleConns(5)    // Allow more idle connections for better concurrency
+		sqlDB.SetMaxOpenConns(10)   // Allow more open connections for concurrent reads
+		sqlDB.SetConnMaxLifetime(0) // Keep connections alive
+
+		// Enable WAL mode for better concurrency (if not in-memory)
+		if !strings.HasPrefix(config.URL, "file::memory:") {
+			// Enable WAL mode for better concurrency
+			db.Exec("PRAGMA journal_mode=WAL")
+			db.Exec("PRAGMA synchronous=NORMAL")
+			db.Exec("PRAGMA cache_size=1000")
+			db.Exec("PRAGMA temp_store=memory")
+		}
 	} else {
 		// PostgreSQL connection pool settings
 		const (

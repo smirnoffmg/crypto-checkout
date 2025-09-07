@@ -82,7 +82,11 @@ func ErrorHandler(cfg *config.Config, logger *zap.Logger) gin.HandlerFunc {
 				statusCode = http.StatusBadRequest
 				errorMessage = err.Error()
 				errorCode = "BAD_REQUEST"
-			case errors.Is(err, invoice.ErrInvoiceNotFound):
+			case errors.Is(err, invoice.ErrInvalidUnitPrice):
+				statusCode = http.StatusBadRequest
+				errorMessage = err.Error()
+				errorCode = "INVALID_UNIT_PRICE"
+			case errors.Is(err, invoice.ErrInvoiceNotFound), errors.Is(err, invoice.ErrNotFound):
 				statusCode = http.StatusNotFound
 				errorMessage = err.Error()
 				errorCode = "NOT_FOUND"
@@ -98,6 +102,10 @@ func ErrorHandler(cfg *config.Config, logger *zap.Logger) gin.HandlerFunc {
 				statusCode = http.StatusInternalServerError
 				errorMessage = "Failed to process payment"
 				errorCode = "PAYMENT_SERVICE_ERROR"
+			case errors.Is(err, payment.ErrPaymentNotFound):
+				statusCode = http.StatusNotFound
+				errorMessage = err.Error()
+				errorCode = "PAYMENT_NOT_FOUND"
 			default:
 				// Check for common HTTP errors by error message
 				errorMsg := err.Error()
@@ -110,6 +118,10 @@ func ErrorHandler(cfg *config.Config, logger *zap.Logger) gin.HandlerFunc {
 					statusCode = http.StatusBadRequest
 					errorMessage = "Empty request body"
 					errorCode = "EMPTY_BODY"
+				case strings.Contains(errorMsg, "not found"):
+					statusCode = http.StatusNotFound
+					errorMessage = err.Error()
+					errorCode = "NOT_FOUND"
 				default:
 					// Log unexpected errors with stack trace
 					logger.Error("Unhandled API error",

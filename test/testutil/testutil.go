@@ -77,7 +77,7 @@ func SetupTestApp(t *testing.T) string {
 				Port: 0, // Will be set by testutil
 			},
 			Database: config.DatabaseConfig{
-				URL: "file::memory:?cache=shared", // In-memory SQLite for testing
+				URL: "file::memory:?cache=shared&mode=memory", // In-memory SQLite with shared cache for testing
 			},
 			Log: config.LogConfig{
 				Level: "debug",

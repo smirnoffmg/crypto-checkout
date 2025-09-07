@@ -161,9 +161,9 @@ func (h *Handler) toPublicInvoiceResponse(inv *invoice.Invoice) PublicInvoiceRes
 	for i, item := range inv.Items() {
 		items[i] = InvoiceItemResponse{
 			Description: item.Description(),
-			UnitPrice:   item.UnitPrice().Amount().String(),
+			UnitPrice:   item.UnitPrice().String(),
 			Quantity:    item.Quantity().String(),
-			Total:       item.TotalPrice().Amount().String(),
+			Total:       item.TotalPrice().String(),
 		}
 	}
 
@@ -205,12 +205,12 @@ func (h *Handler) toPublicInvoiceResponse(inv *invoice.Invoice) PublicInvoiceRes
 		Title:           inv.Title(),
 		Description:     inv.Description(),
 		Items:           items,
-		Subtotal:        inv.Pricing().Subtotal().Amount().String(),
-		TaxAmount:       inv.Pricing().Tax().Amount().String(),
-		Total:           inv.Pricing().Total().Amount().String(),
+		Subtotal:        inv.Pricing().Subtotal().String(),
+		TaxAmount:       inv.Pricing().Tax().String(),
+		Total:           inv.Pricing().Total().String(),
 		Currency:        inv.Pricing().Total().Currency(),
 		CryptoCurrency:  inv.CryptoCurrency().String(),
-		USDTAmount:      inv.Pricing().Total().Amount().String(), // 1:1 USD to USDT for now
+		USDTAmount:      inv.Pricing().Total().String(), // 1:1 USD to USDT for now
 		Address:         address,
 		Status:          inv.Status().String(),
 		ExpiresAt:       expiresAt,

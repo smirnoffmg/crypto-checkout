@@ -33,8 +33,8 @@ func TestInvoiceMapper(t *testing.T) {
 				CryptoAmount:     "22.00",
 				PaymentAddress:   stringPtr("TTestAddress123456789012345678901234567890"),
 				Status:           "created",
-				ExchangeRate:     `{"rate": "1.0", "from": "USD", "to": "USDT", "source": "default", "expires_at": "2025-01-01T00:00:00Z"}`,
-				PaymentTolerance: `{"underpayment_threshold": "0.01", "overpayment_threshold": "1.0", "overpayment_action": "credit"}`,
+				ExchangeRate:     `{"rate": "1.0", "from": "USD", "to": "USDT", "source": "default", "locked_at": "2024-12-31T23:30:00Z", "expires_at": "2025-01-01T00:00:00Z"}`,
+				PaymentTolerance: `{"underpayment_threshold": "0.01", "overpayment_threshold": "1.00", "overpayment_action": "credit_account"}`,
 				ExpiresAt:        timePtr(time.Now().Add(30 * time.Minute)),
 				CreatedAt:        time.Now(),
 				UpdatedAt:        time.Now(),
@@ -103,10 +103,11 @@ func TestInvoiceMapper(t *testing.T) {
 				UpdatedAt:      time.Now(),
 			}
 
+			// Test that empty items are properly rejected by domain validation
 			domain, err := mapper.ToDomain(model)
 			require.Error(t, err)
 			require.Nil(t, domain)
-			require.Contains(t, err.Error(), "invoice must have at least one item")
+			require.Contains(t, err.Error(), "Field validation for 'Items' failed on the 'required' tag")
 		})
 
 		t.Run("Invalid_Items_JSON", func(t *testing.T) {
@@ -218,6 +219,7 @@ func TestInvoiceMapper(t *testing.T) {
 			paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
 			expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
 
+			// Test that empty items are properly rejected
 			domain, err := invoice.NewInvoice(
 				"test-id",
 				"test-merchant",
@@ -234,7 +236,7 @@ func TestInvoiceMapper(t *testing.T) {
 			)
 			require.Error(t, err)
 			require.Nil(t, domain)
-			require.Contains(t, err.Error(), "invoice must have at least one item")
+			require.Contains(t, err.Error(), "Field validation for 'Items' failed on the 'min' tag")
 		})
 	})
 
@@ -318,6 +320,198 @@ func TestInvoiceMapper(t *testing.T) {
 			require.Contains(t, err.Error(), "failed to convert model 0")
 		})
 	})
+
+	t.Run("JSONB_Serialization", func(t *testing.T) {
+		t.Run("SerializeExchangeRate", func(t *testing.T) {
+			// Create a test exchange rate
+			exchangeRate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test-source", 30*time.Minute)
+			require.NoError(t, err)
+
+			// Test serialization
+			jsonStr, err := mapper.SerializeExchangeRate(exchangeRate)
+			require.NoError(t, err)
+			require.NotEmpty(t, jsonStr)
+
+			// Verify JSON structure
+			require.Contains(t, jsonStr, `"rate":"1.5"`)
+			require.Contains(t, jsonStr, `"from":"USD"`)
+			require.Contains(t, jsonStr, `"to":"USDT"`)
+			require.Contains(t, jsonStr, `"source":"test-source"`)
+			require.Contains(t, jsonStr, `"locked_at"`)
+			require.Contains(t, jsonStr, `"expires_at"`)
+		})
+
+		t.Run("SerializeExchangeRate_Nil", func(t *testing.T) {
+			jsonStr, err := mapper.SerializeExchangeRate(nil)
+			require.NoError(t, err)
+			require.Empty(t, jsonStr)
+		})
+
+		t.Run("SerializePaymentTolerance", func(t *testing.T) {
+			// Create a test payment tolerance
+			paymentTolerance, err := invoice.NewPaymentTolerance("0.01", "1.00", invoice.OverpaymentActionCredit)
+			require.NoError(t, err)
+
+			// Test serialization
+			jsonStr, err := mapper.SerializePaymentTolerance(paymentTolerance)
+			require.NoError(t, err)
+			require.NotEmpty(t, jsonStr)
+
+			// Verify JSON structure
+			require.Contains(t, jsonStr, `"underpayment_threshold":"0.01"`)
+			require.Contains(t, jsonStr, `"overpayment_threshold":"1.00"`)
+			require.Contains(t, jsonStr, `"overpayment_action":"credit_account"`)
+		})
+
+		t.Run("SerializePaymentTolerance_Nil", func(t *testing.T) {
+			jsonStr, err := mapper.SerializePaymentTolerance(nil)
+			require.NoError(t, err)
+			require.Empty(t, jsonStr)
+		})
+
+		t.Run("ToModel_WithExchangeRateAndPaymentTolerance", func(t *testing.T) {
+			// Create test invoice with exchange rate and payment tolerance
+			items := []*invoice.InvoiceItem{
+				createTestInvoiceItem(t, "Test Item", "Test Description", "2", "10.00"),
+			}
+			pricing := createTestInvoicePricing(t, "20.00", "2.00", "22.00")
+			exchangeRate, _ := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test-source", 30*time.Minute)
+			paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.00", invoice.OverpaymentActionCredit)
+			paymentAddress, _ := shared.NewPaymentAddress("0x1234567890123456789012345678901234567890", shared.NetworkEthereum)
+			expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
+
+			inv, err := invoice.NewInvoice(
+				"test-invoice-id",
+				"test-merchant-id",
+				"Test Invoice",
+				"Test Description",
+				items,
+				pricing,
+				shared.CryptoCurrencyUSDT,
+				paymentAddress,
+				exchangeRate,
+				paymentTolerance,
+				expiration,
+				nil,
+			)
+			require.NoError(t, err)
+
+			// Convert to model
+			model := mapper.ToModel(inv)
+			require.NotNil(t, model)
+
+			// Verify exchange rate serialization
+			require.NotEmpty(t, model.ExchangeRate)
+			require.Contains(t, model.ExchangeRate, `"rate":"1.5"`)
+			require.Contains(t, model.ExchangeRate, `"from":"USD"`)
+			require.Contains(t, model.ExchangeRate, `"to":"USDT"`)
+			require.Contains(t, model.ExchangeRate, `"source":"test-source"`)
+
+			// Verify payment tolerance serialization
+			require.NotEmpty(t, model.PaymentTolerance)
+			require.Contains(t, model.PaymentTolerance, `"underpayment_threshold":"0.01"`)
+			require.Contains(t, model.PaymentTolerance, `"overpayment_threshold":"1.00"`)
+			require.Contains(t, model.PaymentTolerance, `"overpayment_action":"credit_account"`)
+		})
+
+		t.Run("ToModel_Serialization_EdgeCases", func(t *testing.T) {
+			// Test that serialization methods handle nil values correctly
+			// This tests the edge case handling in the ToModel method
+
+			// Test nil exchange rate serialization
+			exchangeRateJSON, err := mapper.SerializeExchangeRate(nil)
+			require.NoError(t, err)
+			require.Empty(t, exchangeRateJSON)
+
+			// Test nil payment tolerance serialization
+			paymentToleranceJSON, err := mapper.SerializePaymentTolerance(nil)
+			require.NoError(t, err)
+			require.Empty(t, paymentToleranceJSON)
+		})
+
+		t.Run("DeserializeExchangeRate", func(t *testing.T) {
+			// Test deserialization of valid exchange rate JSON
+			jsonStr := `{"rate":"1.5","from":"USD","to":"USDT","source":"test-source","locked_at":"2024-01-01T00:00:00Z","expires_at":"2024-01-01T00:30:00Z"}`
+
+			exchangeRate, err := mapper.DeserializeExchangeRate(jsonStr)
+			require.NoError(t, err)
+			require.NotNil(t, exchangeRate)
+			require.Equal(t, "1.5", exchangeRate.Rate().String())
+			require.Equal(t, string(shared.CurrencyUSD), string(exchangeRate.FromCurrency()))
+			require.Equal(t, string(shared.CryptoCurrencyUSDT), string(exchangeRate.ToCurrency()))
+			require.Equal(t, "test-source", exchangeRate.Source())
+		})
+
+		t.Run("DeserializeExchangeRate_Empty", func(t *testing.T) {
+			exchangeRate, err := mapper.DeserializeExchangeRate("")
+			require.NoError(t, err)
+			require.Nil(t, exchangeRate)
+		})
+
+		t.Run("DeserializeExchangeRate_InvalidJSON", func(t *testing.T) {
+			exchangeRate, err := mapper.DeserializeExchangeRate("invalid json")
+			require.Error(t, err)
+			require.Nil(t, exchangeRate)
+			require.Contains(t, err.Error(), "failed to unmarshal exchange rate")
+		})
+
+		t.Run("DeserializePaymentTolerance", func(t *testing.T) {
+			// Test deserialization of valid payment tolerance JSON
+			jsonStr := `{"underpayment_threshold":"0.01","overpayment_threshold":"1.00","overpayment_action":"credit_account"}`
+
+			paymentTolerance, err := mapper.DeserializePaymentTolerance(jsonStr)
+			require.NoError(t, err)
+			require.NotNil(t, paymentTolerance)
+			require.Equal(t, "0.01", paymentTolerance.UnderpaymentThreshold().StringFixed(2))
+			require.Equal(t, "1.00", paymentTolerance.OverpaymentThreshold().StringFixed(2))
+			require.Equal(t, string(invoice.OverpaymentActionCredit), string(paymentTolerance.OverpaymentAction()))
+		})
+
+		t.Run("DeserializePaymentTolerance_Empty", func(t *testing.T) {
+			paymentTolerance, err := mapper.DeserializePaymentTolerance("")
+			require.NoError(t, err)
+			require.Nil(t, paymentTolerance)
+		})
+
+		t.Run("DeserializePaymentTolerance_InvalidJSON", func(t *testing.T) {
+			paymentTolerance, err := mapper.DeserializePaymentTolerance("invalid json")
+			require.Error(t, err)
+			require.Nil(t, paymentTolerance)
+			require.Contains(t, err.Error(), "failed to unmarshal payment tolerance")
+		})
+
+		t.Run("RoundTrip_Serialization", func(t *testing.T) {
+			// Test that serialization and deserialization are inverse operations
+
+			// Create original objects
+			originalExchangeRate, _ := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test-source", 30*time.Minute)
+			originalPaymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.00", invoice.OverpaymentActionCredit)
+
+			// Serialize
+			exchangeRateJSON, err := mapper.SerializeExchangeRate(originalExchangeRate)
+			require.NoError(t, err)
+
+			paymentToleranceJSON, err := mapper.SerializePaymentTolerance(originalPaymentTolerance)
+			require.NoError(t, err)
+
+			// Deserialize
+			deserializedExchangeRate, err := mapper.DeserializeExchangeRate(exchangeRateJSON)
+			require.NoError(t, err)
+
+			deserializedPaymentTolerance, err := mapper.DeserializePaymentTolerance(paymentToleranceJSON)
+			require.NoError(t, err)
+
+			// Verify they match
+			require.Equal(t, originalExchangeRate.Rate().String(), deserializedExchangeRate.Rate().String())
+			require.Equal(t, originalExchangeRate.FromCurrency(), deserializedExchangeRate.FromCurrency())
+			require.Equal(t, originalExchangeRate.ToCurrency(), deserializedExchangeRate.ToCurrency())
+			require.Equal(t, originalExchangeRate.Source(), deserializedExchangeRate.Source())
+
+			require.Equal(t, originalPaymentTolerance.UnderpaymentThreshold().StringFixed(2), deserializedPaymentTolerance.UnderpaymentThreshold().StringFixed(2))
+			require.Equal(t, originalPaymentTolerance.OverpaymentThreshold().StringFixed(2), deserializedPaymentTolerance.OverpaymentThreshold().StringFixed(2))
+			require.Equal(t, originalPaymentTolerance.OverpaymentAction(), deserializedPaymentTolerance.OverpaymentAction())
+		})
+	})
 }
 
 // Helper functions
@@ -337,4 +531,20 @@ func createTestInvoiceItem(t *testing.T, name, description, quantity, unitPrice 
 	require.NoError(t, err)
 
 	return item
+}
+
+func createTestInvoicePricing(t *testing.T, subtotal, tax, total string) *invoice.InvoicePricing {
+	subtotalMoney, err := shared.NewMoney(subtotal, shared.CurrencyUSD)
+	require.NoError(t, err)
+
+	taxMoney, err := shared.NewMoney(tax, shared.CurrencyUSD)
+	require.NoError(t, err)
+
+	totalMoney, err := shared.NewMoney(total, shared.CurrencyUSD)
+	require.NoError(t, err)
+
+	pricing, err := invoice.NewInvoicePricing(subtotalMoney, taxMoney, totalMoney)
+	require.NoError(t, err)
+
+	return pricing
 }

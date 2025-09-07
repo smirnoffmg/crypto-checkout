@@ -29,8 +29,11 @@ func TestInvoiceIntegration(t *testing.T) {
 	t.Run("CreateAndCancelInvoice", func(t *testing.T) {
 		// Step 1: Create an invoice
 		createReq := web.CreateInvoiceRequest{
+			Title:       "Integration Test Invoice",
+			Description: "Test invoice for integration testing",
 			Items: []web.InvoiceItemRequest{
 				{
+					Name:        "Test Item",
 					Description: "Test item",
 					Quantity:    "1",
 					UnitPrice:   "10.00",

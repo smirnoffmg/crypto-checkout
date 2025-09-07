@@ -102,6 +102,12 @@ func (h *Handler) RegisterRoutes(router *gin.Engine) {
 			{
 				analytics.GET("", h.GetAnalytics)
 			}
+
+			// Admin routes
+			admin := protected.Group("/admin")
+			{
+				admin.POST("/process-expired-invoices", h.ProcessExpiredInvoices)
+			}
 		}
 	}
 }

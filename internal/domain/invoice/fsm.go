@@ -260,7 +260,7 @@ func CanExpire(invoice *Invoice) error {
 	}
 
 	// Check if invoice has actually expired
-	if !invoice.IsExpired() {
+	if !invoice.Expiration().IsExpired() {
 		return errors.New("invoice has not expired yet")
 	}
 
@@ -270,7 +270,7 @@ func CanExpire(invoice *Invoice) error {
 // CanCancel checks if an invoice can be cancelled.
 func CanCancel(invoice *Invoice) error {
 	// Cannot cancel invoices in terminal states
-	if invoice.IsTerminal() {
+	if invoice.Status().IsTerminal() {
 		return errors.New("cannot cancel invoice in terminal state")
 	}
 

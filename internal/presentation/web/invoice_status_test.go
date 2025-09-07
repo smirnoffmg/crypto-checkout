@@ -28,8 +28,11 @@ func TestInvoiceStatusEndpoint(t *testing.T) {
 	t.Run("GetInvoiceStatus_Success", func(t *testing.T) {
 		// Given: First create an invoice to check status
 		createReq := web.CreateInvoiceRequest{
+			Title:       "Status Test Invoice",
+			Description: "Test invoice for status checking",
 			Items: []web.InvoiceItemRequest{
 				{
+					Name:        "Test Item",
 					Description: "Test item for status check",
 					Quantity:    "1",
 					UnitPrice:   "20.00",

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/shared"
@@ -34,12 +36,48 @@ func (r *InvoiceRepository) Save(ctx context.Context, inv *invoice.Invoice) erro
 	// Convert domain model to database model
 	model := r.mapper.ToModel(inv)
 
-	// Save invoice (GORM will handle insert/update automatically)
-	if err := r.db.WithContext(ctx).Save(model).Error; err != nil {
-		return fmt.Errorf("failed to save invoice: %w", err)
+	// Retry logic for database locking issues
+	const maxRetries = 5
+	const baseRetryDelay = 5 * time.Millisecond
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// Save invoice (GORM will handle insert/update automatically)
+			if err := tx.Save(model).Error; err != nil {
+				return fmt.Errorf("failed to save invoice: %w", err)
+			}
+			return nil
+		})
+
+		if err == nil {
+			return nil
+		}
+
+		// Check if it's a locking error that we should retry
+		if isRetryableError(err) && attempt < maxRetries-1 {
+			// Exponential backoff with jitter
+			delay := baseRetryDelay * time.Duration(1<<attempt) // 5ms, 10ms, 20ms, 40ms
+			time.Sleep(delay)
+			continue
+		}
+
+		return err
 	}
 
-	return nil
+	return fmt.Errorf("failed to save invoice after %d attempts", maxRetries)
+}
+
+// isRetryableError checks if an error is retryable (e.g., database locked)
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "database is locked") ||
+		strings.Contains(errStr, "table is locked") ||
+		strings.Contains(errStr, "busy") ||
+		strings.Contains(errStr, "timeout")
 }
 
 // FindByID retrieves an invoice by its ID.
@@ -125,11 +163,19 @@ func (r *InvoiceRepository) FindActive(ctx context.Context) ([]*invoice.Invoice,
 	return r.mapper.ToDomainSlice(models)
 }
 
-// FindExpired retrieves all expired invoices.
+// FindExpired retrieves all invoices that should be expired (have passed expiration time but are still active).
 func (r *InvoiceRepository) FindExpired(ctx context.Context) ([]*invoice.Invoice, error) {
+	// Find active invoices that have passed their expiration time
+	activeStatuses := []string{
+		invoice.StatusCreated.String(),
+		invoice.StatusPending.String(),
+		invoice.StatusPartial.String(),
+		invoice.StatusConfirming.String(),
+	}
+
 	var models []InvoiceModel
 	err := r.db.WithContext(ctx).
-		Where("status = ?", invoice.StatusExpired.String()).
+		Where("status IN ? AND expires_at < ?", activeStatuses, time.Now().UTC()).
 		Find(&models).Error
 
 	if err != nil {

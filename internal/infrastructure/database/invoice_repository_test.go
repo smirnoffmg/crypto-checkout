@@ -49,7 +49,7 @@ func createTestInvoiceWithID(t *testing.T, id string) *invoice.Invoice {
 	paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
 	expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
 
-	inv, err := invoice.NewInvoice(
+inv, err := invoice.NewInvoice(
 		id,
 		"test-merchant-id",
 		"Test Invoice",
@@ -63,8 +63,8 @@ func createTestInvoiceWithID(t *testing.T, id string) *invoice.Invoice {
 		expiration,
 		nil,
 	)
-	require.NoError(t, err)
 
+require.NoError(t, err)
 	return inv
 }
 

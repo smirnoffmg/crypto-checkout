@@ -83,30 +83,42 @@ func (m *InvoiceMapper) ToDomain(model *InvoiceModel) (*invoice.Invoice, error) 
 		}
 	}
 
-	// Create exchange rate (simplified - in real implementation, parse from JSONB)
-	exchangeRate, err := shared.NewExchangeRate("1.0", shared.CurrencyUSD, shared.CryptoCurrency(model.CryptoCurrency), "default_provider", 30*time.Minute)
+	// Deserialize exchange rate from JSONB
+	exchangeRate, err := m.DeserializeExchangeRate(model.ExchangeRate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create exchange rate: %w", err)
+		return nil, fmt.Errorf("failed to deserialize exchange rate: %w", err)
+	}
+	if exchangeRate == nil {
+		// Fallback to default if not present
+		exchangeRate, err = shared.NewExchangeRate("1.0", shared.CurrencyUSD, shared.CryptoCurrency(model.CryptoCurrency), "default_provider", 30*time.Minute)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default exchange rate: %w", err)
+		}
 	}
 
-	// Create payment tolerance (simplified - in real implementation, parse from JSONB)
-	paymentTolerance, err := invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
+	// Deserialize payment tolerance from JSONB
+	paymentTolerance, err := m.DeserializePaymentTolerance(model.PaymentTolerance)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create payment tolerance: %w", err)
+		return nil, fmt.Errorf("failed to deserialize payment tolerance: %w", err)
+	}
+	if paymentTolerance == nil {
+		// Fallback to default if not present
+		paymentTolerance, err = invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default payment tolerance: %w", err)
+		}
 	}
 
 	// Create expiration
 	var expiration *invoice.InvoiceExpiration
 	if model.ExpiresAt != nil {
-		expiration, err = invoice.NewInvoiceExpirationWithTime(*model.ExpiresAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create expiration: %w", err)
-		}
+		// Use unsafe version to allow loading expired invoices from database
+		expiration = invoice.NewInvoiceExpirationWithTimeUnsafe(*model.ExpiresAt)
 	} else {
 		expiration = invoice.NewInvoiceExpiration(30 * time.Minute)
 	}
 
-	// Create invoice with correct constructor signature
+	// Create invoice with validation
 	inv, err := invoice.NewInvoice(
 		model.ID,
 		model.MerchantID,
@@ -203,10 +215,19 @@ func (m *InvoiceMapper) ToModel(inv *invoice.Invoice) *InvoiceModel {
 		model.ExpiresAt = &expiresAt
 	}
 
-	// TODO: Serialize exchange rate and payment tolerance to JSONB
-	// For now, using placeholder values
-	model.ExchangeRate = `{"rate": "1.0", "from": "USD", "to": "USDT", "source": "default", "expires_at": "2025-01-01T00:00:00Z"}`
-	model.PaymentTolerance = `{"underpayment_threshold": "0.01", "overpayment_threshold": "1.0", "overpayment_action": "credit"}`
+	// Serialize exchange rate to JSONB
+	if inv.ExchangeRate() != nil {
+		if exchangeRateJSON, err := m.SerializeExchangeRate(inv.ExchangeRate()); err == nil {
+			model.ExchangeRate = exchangeRateJSON
+		}
+	}
+
+	// Serialize payment tolerance to JSONB
+	if inv.PaymentTolerance() != nil {
+		if paymentToleranceJSON, err := m.SerializePaymentTolerance(inv.PaymentTolerance()); err == nil {
+			model.PaymentTolerance = paymentToleranceJSON
+		}
+	}
 
 	return model
 }
@@ -222,4 +243,146 @@ func (m *InvoiceMapper) ToDomainSlice(models []InvoiceModel) ([]*invoice.Invoice
 		invoices[i] = inv
 	}
 	return invoices, nil
+}
+
+// SerializeExchangeRate converts an ExchangeRate to JSON string.
+func (m *InvoiceMapper) SerializeExchangeRate(er *shared.ExchangeRate) (string, error) {
+	if er == nil {
+		return "", nil
+	}
+
+	exchangeRateData := map[string]interface{}{
+		"rate":       er.Rate().String(),
+		"from":       string(er.FromCurrency()),
+		"to":         string(er.ToCurrency()),
+		"source":     er.Source(),
+		"locked_at":  er.LockedAt().Format(time.RFC3339),
+		"expires_at": er.ExpiresAt().Format(time.RFC3339),
+	}
+
+	jsonData, err := json.Marshal(exchangeRateData)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal exchange rate: %w", err)
+	}
+
+	return string(jsonData), nil
+}
+
+// SerializePaymentTolerance converts a PaymentTolerance to JSON string.
+func (m *InvoiceMapper) SerializePaymentTolerance(pt *invoice.PaymentTolerance) (string, error) {
+	if pt == nil {
+		return "", nil
+	}
+
+	paymentToleranceData := map[string]interface{}{
+		"underpayment_threshold": pt.UnderpaymentThreshold().StringFixed(2),
+		"overpayment_threshold":  pt.OverpaymentThreshold().StringFixed(2),
+		"overpayment_action":     string(pt.OverpaymentAction()),
+	}
+
+	jsonData, err := json.Marshal(paymentToleranceData)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payment tolerance: %w", err)
+	}
+
+	return string(jsonData), nil
+}
+
+// DeserializeExchangeRate converts a JSON string to an ExchangeRate.
+func (m *InvoiceMapper) DeserializeExchangeRate(jsonStr string) (*shared.ExchangeRate, error) {
+	if jsonStr == "" {
+		return nil, nil
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal exchange rate: %w", err)
+	}
+
+	rate, ok := data["rate"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid rate format")
+	}
+
+	from, ok := data["from"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid from currency format")
+	}
+
+	to, ok := data["to"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid to currency format")
+	}
+
+	source, ok := data["source"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid source format")
+	}
+
+	lockedAtStr, ok := data["locked_at"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid locked_at format")
+	}
+
+	expiresAtStr, ok := data["expires_at"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid expires_at format")
+	}
+
+	lockedAt, err := time.Parse(time.RFC3339, lockedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid locked_at time format: %w", err)
+	}
+
+	expiresAt, err := time.Parse(time.RFC3339, expiresAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid expires_at time format: %w", err)
+	}
+
+	// Create exchange rate with calculated duration
+	duration := expiresAt.Sub(lockedAt)
+	exchangeRate, err := shared.NewExchangeRate(rate, shared.Currency(from), shared.CryptoCurrency(to), source, duration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create exchange rate: %w", err)
+	}
+
+	return exchangeRate, nil
+}
+
+// DeserializePaymentTolerance converts a JSON string to a PaymentTolerance.
+func (m *InvoiceMapper) DeserializePaymentTolerance(jsonStr string) (*invoice.PaymentTolerance, error) {
+	if jsonStr == "" {
+		return nil, nil
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payment tolerance: %w", err)
+	}
+
+	underpaymentThreshold, ok := data["underpayment_threshold"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid underpayment_threshold format")
+	}
+
+	overpaymentThreshold, ok := data["overpayment_threshold"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid overpayment_threshold format")
+	}
+
+	overpaymentAction, ok := data["overpayment_action"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid overpayment_action format")
+	}
+
+	paymentTolerance, err := invoice.NewPaymentTolerance(
+		underpaymentThreshold,
+		overpaymentThreshold,
+		invoice.OverpaymentAction(overpaymentAction),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payment tolerance: %w", err)
+	}
+
+	return paymentTolerance, nil
 }

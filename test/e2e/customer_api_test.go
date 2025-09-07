@@ -18,13 +18,17 @@ func TestCustomerAPIViewInvoice(t *testing.T) {
 
 	// First create an invoice via merchant API
 	createReq := map[string]interface{}{
+		"title":       "VPN Premium Plan Invoice",
+		"description": "Premium VPN service with additional static IPs",
 		"items": []map[string]interface{}{
 			{
+				"name":        "VPN Premium Plan",
 				"description": "VPN Premium Plan",
 				"unit_price":  "9.99",
 				"quantity":    "1",
 			},
 			{
+				"name":        "Additional Static IP",
 				"description": "Additional Static IP",
 				"unit_price":  "2.50",
 				"quantity":    "2",
@@ -99,8 +103,11 @@ func TestCustomerAPIGetQRCode(t *testing.T) {
 
 	// First create an invoice
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -141,16 +148,15 @@ func TestCustomerAPIGetQRCode(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// QR code should return 500 error if no payment address is assigned
-	// This is expected behavior as per the current implementation
-	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	// QR code should return 200 with image data
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify error response
-	var errorResponse map[string]interface{}
+	// Verify response is an image (PNG)
+	require.Equal(t, "image/png", resp.Header.Get("Content-Type"))
+
+	// Verify response body is not empty (should contain image data)
 	body, _ := io.ReadAll(resp.Body)
-	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		require.Contains(t, errorResponse, "error")
-	}
+	require.NotEmpty(t, body)
 }
 
 // TestCustomerAPIGetQRCodeNotFound tests QR code for non-existent invoice.
@@ -172,8 +178,11 @@ func TestCustomerAPIWebSocketConnection(t *testing.T) {
 
 	// First create an invoice
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -241,8 +250,11 @@ func TestCustomerAPIPaymentStatusEndpoint(t *testing.T) {
 
 	// First create an invoice
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -275,21 +287,20 @@ func TestCustomerAPIPaymentStatusEndpoint(t *testing.T) {
 	json.Unmarshal(createBody, &createResponse)
 	invoiceID := createResponse["id"].(string)
 
-	// Test payment status endpoint (should return 501 as not implemented yet)
+	// Test payment status endpoint
 	resp, err := http.Get(baseURL + "/invoice/" + invoiceID + "/status")
 	if err != nil {
 		t.Fatalf("Failed to get payment status: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// This endpoint is not implemented yet, so it should return 501 Not Implemented
-	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	// This endpoint is implemented and should return 200 OK
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify error response
-	var errorResponse map[string]interface{}
+	// Verify response is JSON
+	require.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+
+	// Verify response body is not empty
 	body, _ := io.ReadAll(resp.Body)
-	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		require.Contains(t, errorResponse, "error")
-		require.Contains(t, errorResponse, "message")
-	}
+	require.NotEmpty(t, body)
 }

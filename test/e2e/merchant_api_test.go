@@ -18,13 +18,17 @@ func TestMerchantAPICreateInvoice(t *testing.T) {
 
 	// Test valid invoice creation
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "VPN Premium Plan",
 				"description": "VPN Premium Plan",
 				"unit_price":  "9.99",
 				"quantity":    "1",
 			},
 			{
+				"name":        "Additional Static IP",
 				"description": "Additional Static IP",
 				"unit_price":  "2.50",
 				"quantity":    "2",
@@ -119,8 +123,11 @@ func TestMerchantAPICreateInvoiceValidation(t *testing.T) {
 		{
 			name: "missing tax_rate",
 			request: map[string]interface{}{
+				"title":       "Test Invoice",
+				"description": "Test Invoice Description",
 				"items": []map[string]interface{}{
 					{
+						"name":        "Test Item",
 						"description": "Test Item",
 						"unit_price":  "10.00",
 						"quantity":    "1",
@@ -132,8 +139,11 @@ func TestMerchantAPICreateInvoiceValidation(t *testing.T) {
 		{
 			name: "negative tax rate",
 			request: map[string]interface{}{
+				"title":       "Test Invoice",
+				"description": "Test Invoice Description",
 				"items": []map[string]interface{}{
 					{
+						"name":        "Test Item",
 						"description": "Test Item",
 						"unit_price":  "10.00",
 						"quantity":    "1",
@@ -146,8 +156,11 @@ func TestMerchantAPICreateInvoiceValidation(t *testing.T) {
 		{
 			name: "invalid unit_price format",
 			request: map[string]interface{}{
+				"title":       "Test Invoice",
+				"description": "Test Invoice Description",
 				"items": []map[string]interface{}{
 					{
+						"name":        "Test Item",
 						"description": "Test Item",
 						"unit_price":  "invalid",
 						"quantity":    "1",
@@ -188,8 +201,11 @@ func TestMerchantAPIGetInvoice(t *testing.T) {
 
 	// First create an invoice
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -292,8 +308,11 @@ func TestMerchantAPIAuthentication(t *testing.T) {
 
 	// Test creating invoice without authentication - should fail
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -344,8 +363,11 @@ func TestMerchantAPICancelInvoice(t *testing.T) {
 
 	// First create an invoice
 	createReq := map[string]interface{}{
+		"title":       "Test Invoice",
+		"description": "Test Invoice Description",
 		"items": []map[string]interface{}{
 			{
+				"name":        "Test Item",
 				"description": "Test Item",
 				"unit_price":  "10.00",
 				"quantity":    "1",
@@ -379,7 +401,11 @@ func TestMerchantAPICancelInvoice(t *testing.T) {
 	invoiceID := createResponse["id"].(string)
 
 	// Now cancel the invoice with authentication
-	cancelHTTPReq, err := http.NewRequest("POST", baseURL+"/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer([]byte("{}")))
+	cancelReq := map[string]interface{}{
+		"reason": "Test cancellation",
+	}
+	cancelReqBody, _ := json.Marshal(cancelReq)
+	cancelHTTPReq, err := http.NewRequest("POST", baseURL+"/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(cancelReqBody))
 	if err != nil {
 		t.Fatalf("Failed to create cancel request: %v", err)
 	}
@@ -392,15 +418,17 @@ func TestMerchantAPICancelInvoice(t *testing.T) {
 	}
 	defer cancelResp.Body.Close()
 
-	// Should return 501 Not Implemented as per current implementation
-	require.Equal(t, http.StatusNotImplemented, cancelResp.StatusCode)
+	// Should return 200 OK as the cancel invoice endpoint is implemented
+	require.Equal(t, http.StatusOK, cancelResp.StatusCode)
 
-	// Verify error response
-	var errorResponse map[string]interface{}
+	// Verify response structure
+	var response map[string]interface{}
 	body, _ := io.ReadAll(cancelResp.Body)
-	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		require.Contains(t, errorResponse, "error")
-		require.Contains(t, errorResponse, "message")
+	if unmarshalErr := json.Unmarshal(body, &response); unmarshalErr == nil {
+		require.Contains(t, response, "id")
+		require.Contains(t, response, "status")
+		require.Contains(t, response, "reason")
+		require.Contains(t, response, "cancelled_at")
 	}
 }
 
@@ -421,15 +449,17 @@ func TestMerchantAPIListInvoices(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Should return 501 Not Implemented as per current implementation
-	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	// Should return 200 OK as the list invoices endpoint is implemented
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify error response
-	var errorResponse map[string]interface{}
+	// Verify response structure
+	var response map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
-	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		require.Contains(t, errorResponse, "error")
-		require.Contains(t, errorResponse, "message")
+	if unmarshalErr := json.Unmarshal(body, &response); unmarshalErr == nil {
+		require.Contains(t, response, "invoices")
+		require.Contains(t, response, "total")
+		require.Contains(t, response, "page")
+		require.Contains(t, response, "limit")
 	}
 }
 
@@ -450,14 +480,23 @@ func TestMerchantAPIGetAnalytics(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Should return 501 Not Implemented as per current implementation
-	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	// Should return 200 OK as the analytics endpoint is implemented
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify error response
-	var errorResponse map[string]interface{}
+	// Verify response structure
+	var response map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
-	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		require.Contains(t, errorResponse, "error")
-		require.Contains(t, errorResponse, "message")
+	if unmarshalErr := json.Unmarshal(body, &response); unmarshalErr == nil {
+		require.Contains(t, response, "summary")
+		require.Contains(t, response, "invoices")
+		require.Contains(t, response, "payments")
+
+		// Check nested structure
+		if invoices, ok := response["invoices"].(map[string]interface{}); ok {
+			require.Contains(t, invoices, "by_status")
+		}
+		if payments, ok := response["payments"].(map[string]interface{}); ok {
+			require.Contains(t, payments, "by_status")
+		}
 	}
 }

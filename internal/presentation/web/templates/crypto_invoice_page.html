@@ -80,22 +80,22 @@
                                     </td>
                                     <td class="px-4 py-4 text-right text-gray-900">{{.Quantity}}</td>
                                     <td class="px-4 py-4 text-right text-gray-900">${{.UnitPrice.String}}</td>
-                                    <td class="px-4 py-4 text-right font-medium text-gray-900">${{.CalculateTotal.String}}</td>
+                                    <td class="px-4 py-4 text-right font-medium text-gray-900">${{.TotalPrice.String}}</td>
                                 </tr>
                                 {{end}}
                             </tbody>
                             <tfoot class="bg-gray-50">
                                 <tr>
                                     <td colspan="3" class="px-4 py-3 text-right text-sm font-medium text-gray-900">Subtotal:</td>
-                                    <td class="px-4 py-3 text-right font-medium text-gray-900">${{.Invoice.CalculateSubtotal.String}}</td>
+                                    <td class="px-4 py-3 text-right font-medium text-gray-900">${{.Invoice.Pricing.Subtotal.String}}</td>
                                 </tr>
                                 <tr>
-                                    <td colspan="3" class="px-4 py-3 text-right text-sm font-medium text-gray-900">Tax ({{.Invoice.TaxRate.StringFixed 2}}%):</td>
-                                    <td class="px-4 py-3 text-right font-medium text-gray-900">${{.Invoice.CalculateTax.String}}</td>
+                                    <td colspan="3" class="px-4 py-3 text-right text-sm font-medium text-gray-900">Tax:</td>
+                                    <td class="px-4 py-3 text-right font-medium text-gray-900">${{.Invoice.Pricing.Tax.String}}</td>
                                 </tr>
                                 <tr class="border-t-2 border-gray-200">
                                     <td colspan="3" class="px-4 py-3 text-right text-lg font-bold text-gray-900">Total:</td>
-                                    <td class="px-4 py-3 text-right text-lg font-bold text-gray-900">${{.Invoice.CalculateTotal.String}}</td>
+                                    <td class="px-4 py-3 text-right text-lg font-bold text-gray-900">${{.Invoice.Pricing.Total.String}}</td>
                                 </tr>
                             </tfoot>
                         </table>

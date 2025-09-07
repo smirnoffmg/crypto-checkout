@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"crypto-checkout/internal/domain/shared"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // Payment represents a blockchain payment transaction.
@@ -22,7 +24,18 @@ type Payment struct {
 	timestamps            *PaymentTimestamps
 }
 
-// NewPayment creates a new payment.
+// PaymentValidation represents the validation structure for Payment creation.
+type PaymentValidation struct {
+	ID                    string           `validate:"required"`
+	InvoiceID             string           `validate:"required"`
+	Amount                *PaymentAmount   `validate:"required"`
+	FromAddress           string           `validate:"required"`
+	ToAddress             *PaymentAddress  `validate:"required"`
+	TransactionHash       *TransactionHash `validate:"required"`
+	RequiredConfirmations int              `validate:"min=0"`
+}
+
+// NewPayment creates a new payment with validation.
 func NewPayment(
 	id shared.PaymentID,
 	invoiceID shared.InvoiceID,
@@ -32,32 +45,42 @@ func NewPayment(
 	transactionHash *TransactionHash,
 	requiredConfirmations int,
 ) (*Payment, error) {
-	if id == "" {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "payment ID cannot be empty", nil)
+	// Create validation struct
+	validation := PaymentValidation{
+		ID:                    string(id),
+		InvoiceID:             string(invoiceID),
+		Amount:                amount,
+		FromAddress:           fromAddress,
+		ToAddress:             toAddress,
+		TransactionHash:       transactionHash,
+		RequiredConfirmations: requiredConfirmations,
 	}
 
-	if invoiceID == "" {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "invoice ID cannot be empty", nil)
-	}
-
-	if amount == nil {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "payment amount cannot be nil", nil)
-	}
-
-	if fromAddress == "" {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "from address cannot be empty", nil)
-	}
-
-	if toAddress == nil {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "to address cannot be nil", nil)
-	}
-
-	if transactionHash == nil {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "transaction hash cannot be nil", nil)
-	}
-
-	if requiredConfirmations < 0 {
-		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "required confirmations cannot be negative", nil)
+	// Validate using go-playground/validator
+	validate := validator.New()
+	if err := validate.Struct(validation); err != nil {
+		// Convert validator errors to our custom error format
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			for _, fieldErr := range validationErrors {
+				switch fieldErr.Field() {
+				case "ID":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "payment ID cannot be empty", nil)
+				case "InvoiceID":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "invoice ID cannot be empty", nil)
+				case "Amount":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "payment amount cannot be nil", nil)
+				case "FromAddress":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "from address cannot be empty", nil)
+				case "ToAddress":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "to address cannot be nil", nil)
+				case "TransactionHash":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "transaction hash cannot be nil", nil)
+				case "RequiredConfirmations":
+					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "required confirmations cannot be negative", nil)
+				}
+			}
+		}
+		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "validation failed", err)
 	}
 
 	confirmations, err := NewConfirmationCount(0)

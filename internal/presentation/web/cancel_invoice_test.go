@@ -28,8 +28,11 @@ func TestCancelInvoiceEndpoint(t *testing.T) {
 	t.Run("CancelInvoice_Success", func(t *testing.T) {
 		// Given: First create an invoice to cancel
 		createReq := web.CreateInvoiceRequest{
+			Title:       "Test Invoice for Cancellation",
+			Description: "Test invoice to be cancelled",
 			Items: []web.InvoiceItemRequest{
 				{
+					Name:        "Test Item",
 					Description: "Test item for cancellation",
 					Quantity:    "1",
 					UnitPrice:   "15.00",

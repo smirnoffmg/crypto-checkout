@@ -340,6 +340,16 @@ func NewInvoiceExpirationWithTime(expiresAt time.Time) (*InvoiceExpiration, erro
 	}, nil
 }
 
+// NewInvoiceExpirationWithTimeUnsafe creates a new InvoiceExpiration with a specific expiration time without validation.
+// This is used for loading existing invoices from the database, including expired ones.
+func NewInvoiceExpirationWithTimeUnsafe(expiresAt time.Time) *InvoiceExpiration {
+	duration := time.Until(expiresAt)
+	return &InvoiceExpiration{
+		expiresAt: expiresAt,
+		duration:  duration,
+	}
+}
+
 // ExpiresAt returns the expiration time.
 func (ie *InvoiceExpiration) ExpiresAt() time.Time {
 	return ie.expiresAt

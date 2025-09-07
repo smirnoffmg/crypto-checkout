@@ -122,7 +122,53 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, req *CreateInvoi
 	// Generate invoice ID (this would typically come from an ID generator service)
 	invoiceID := s.generateInvoiceID()
 
-	// Create invoice
+	// Validate input parameters
+	if invoiceID == "" {
+		return nil, errors.New("invoice ID cannot be empty")
+	}
+	if req.MerchantID == "" {
+		return nil, errors.New("merchant ID cannot be empty")
+	}
+	if req.Title == "" {
+		return nil, errors.New("title cannot be empty")
+	}
+	if len(req.Title) > 255 {
+		return nil, errors.New("title cannot exceed 255 characters")
+	}
+	if len(req.Description) > 1000 {
+		return nil, errors.New("description cannot exceed 1000 characters")
+	}
+	if len(items) == 0 {
+		return nil, errors.New("invoice must have at least one item")
+	}
+	if pricing == nil {
+		return nil, errors.New("pricing cannot be nil")
+	}
+	if !req.CryptoCurrency.IsValid() {
+		return nil, errors.New("invalid cryptocurrency")
+	}
+	if paymentAddress == nil {
+		return nil, errors.New("payment address cannot be nil")
+	}
+	if exchangeRate == nil {
+		return nil, errors.New("exchange rate cannot be nil")
+	}
+	if paymentTolerance == nil {
+		return nil, errors.New("payment tolerance cannot be nil")
+	}
+	if expiration == nil {
+		return nil, errors.New("expiration cannot be nil")
+	}
+	// Validate that exchange rate is not expired
+	if exchangeRate.IsExpired() {
+		return nil, errors.New("exchange rate has expired")
+	}
+	// Validate that payment address is not expired
+	if paymentAddress.IsExpired() {
+		return nil, errors.New("payment address has expired")
+	}
+
+	// Create invoice with validation
 	invoice, err := NewInvoice(
 		invoiceID,
 		req.MerchantID,
@@ -263,7 +309,7 @@ func (s *InvoiceServiceImpl) ListInvoices(ctx context.Context, req *ListInvoices
 	}, nil
 }
 
-// MarkInvoiceAsViewed marks an invoice as viewed by the customer.
+// MarkInvoiceAsViewed marks an invoice as viewed by the customer using FSM.
 func (s *InvoiceServiceImpl) MarkInvoiceAsViewed(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("invoice ID cannot be empty")
@@ -274,14 +320,28 @@ func (s *InvoiceServiceImpl) MarkInvoiceAsViewed(ctx context.Context, id string)
 		return err
 	}
 
-	if err := invoice.MarkAsViewed(); err != nil {
+	// Business logic validation
+	if invoice.Status() != StatusCreated {
+		return errors.New("can only mark created invoices as viewed")
+	}
+	if invoice.ViewedAt() != nil {
+		return errors.New("invoice already marked as viewed")
+	}
+
+	// Use FSM to transition from created to pending when viewed
+	fsm := NewInvoiceFSM(invoice)
+	if err := fsm.Event(ctx, "view"); err != nil {
 		return err
 	}
+
+	// Mark as viewed (set viewedAt timestamp)
+	now := time.Now().UTC()
+	invoice.SetViewedAt(&now)
 
 	return s.repository.Update(ctx, invoice)
 }
 
-// CancelInvoice cancels an invoice.
+// CancelInvoice cancels an invoice using FSM.
 func (s *InvoiceServiceImpl) CancelInvoice(ctx context.Context, id string, reason string) error {
 	if id == "" {
 		return errors.New("invoice ID cannot be empty")
@@ -292,14 +352,21 @@ func (s *InvoiceServiceImpl) CancelInvoice(ctx context.Context, id string, reaso
 		return err
 	}
 
-	if err := invoice.Cancel(); err != nil {
+	// Business logic validation
+	if invoice.Status().IsTerminal() {
+		return errors.New("cannot cancel invoice in terminal state")
+	}
+
+	// Use FSM to transition to cancelled status
+	fsm := NewInvoiceFSM(invoice)
+	if err := fsm.Event(ctx, "cancel"); err != nil {
 		return err
 	}
 
 	return s.repository.Update(ctx, invoice)
 }
 
-// ProcessPayment processes a payment for an invoice.
+// ProcessPayment processes a payment for an invoice using FSM.
 func (s *InvoiceServiceImpl) ProcessPayment(ctx context.Context, invoiceID string, payment *Payment) error {
 	if invoiceID == "" {
 		return errors.New("invoice ID cannot be empty")
@@ -314,27 +381,24 @@ func (s *InvoiceServiceImpl) ProcessPayment(ctx context.Context, invoiceID strin
 		return err
 	}
 
-	// Validate payment amount
-	isValid, validationType, err := invoice.ValidatePaymentAmount(payment.Amount())
+	// Validate payment amount (business logic moved to service)
+	validationType, err := s.validatePaymentAmount(invoice, payment.Amount())
 	if err != nil {
 		return err
 	}
 
-	if !isValid {
-		return errors.New("payment validation failed: " + validationType)
-	}
-
-	// Update invoice status based on payment
+	// Use FSM to update invoice status based on payment
+	fsm := NewInvoiceFSM(invoice)
 	switch validationType {
 	case "sufficient":
 		if invoice.Status() == StatusPending || invoice.Status() == StatusPartial {
-			if err := invoice.TransitionTo(StatusConfirming); err != nil {
+			if err := fsm.Event(ctx, "full_payment"); err != nil {
 				return err
 			}
 		}
 	case "partial":
 		if invoice.Status() == StatusPending {
-			if err := invoice.TransitionTo(StatusPartial); err != nil {
+			if err := fsm.Event(ctx, "partial_payment"); err != nil {
 				return err
 			}
 		}
@@ -349,7 +413,7 @@ func (s *InvoiceServiceImpl) GetExpiredInvoices(ctx context.Context) ([]*Invoice
 	return s.repository.FindExpired(ctx)
 }
 
-// ProcessExpiredInvoices processes expired invoices.
+// ProcessExpiredInvoices processes expired invoices using FSM.
 func (s *InvoiceServiceImpl) ProcessExpiredInvoices(ctx context.Context) error {
 	expiredInvoices, err := s.GetExpiredInvoices(ctx)
 	if err != nil {
@@ -357,7 +421,22 @@ func (s *InvoiceServiceImpl) ProcessExpiredInvoices(ctx context.Context) error {
 	}
 
 	for _, invoice := range expiredInvoices {
-		if err := invoice.Expire(); err != nil {
+		// Business logic validation
+		if invoice.Status().IsTerminal() {
+			continue // Skip terminal invoices
+		}
+		// Special case: partial payments should not auto-expire
+		if invoice.Status() == StatusPartial {
+			continue // Skip partial payment invoices
+		}
+		// Check if invoice has actually expired
+		if !invoice.Expiration().IsExpired() {
+			continue // Skip invoices that haven't expired yet
+		}
+
+		// Use FSM to transition to expired status
+		fsm := NewInvoiceFSM(invoice)
+		if err := fsm.Event(ctx, "expire"); err != nil {
 			// Log error but continue processing other invoices
 			continue
 		}
@@ -365,6 +444,35 @@ func (s *InvoiceServiceImpl) ProcessExpiredInvoices(ctx context.Context) error {
 		if err := s.repository.Update(ctx, invoice); err != nil {
 			// Log error but continue processing other invoices
 			continue
+		}
+	}
+
+	return nil
+}
+
+// ProcessExpiredInvoice processes a specific expired invoice by ID using FSM.
+// This is useful for testing and manual intervention.
+func (s *InvoiceServiceImpl) ProcessExpiredInvoice(ctx context.Context, id string) error {
+	if id == "" {
+		return errors.New("invoice ID cannot be empty")
+	}
+
+	invoice, err := s.repository.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Business logic validation
+	if invoice.Expiration().IsExpired() && !invoice.Status().IsTerminal() {
+		// Special case: partial payments should not auto-expire
+		if invoice.Status() != StatusPartial {
+			// Use FSM to transition to expired status
+			fsm := NewInvoiceFSM(invoice)
+			if err := fsm.Event(ctx, "expire"); err != nil {
+				return err
+			}
+
+			return s.repository.Update(ctx, invoice)
 		}
 	}
 
@@ -385,7 +493,7 @@ func (s *InvoiceServiceImpl) GetInvoiceStatus(ctx context.Context, id string) (I
 	return invoice.Status(), nil
 }
 
-// UpdateInvoiceStatus updates the status of an invoice.
+// UpdateInvoiceStatus updates the status of an invoice using FSM.
 func (s *InvoiceServiceImpl) UpdateInvoiceStatus(ctx context.Context, id string, newStatus InvoiceStatus, reason string) error {
 	if id == "" {
 		return errors.New("invoice ID cannot be empty")
@@ -400,7 +508,9 @@ func (s *InvoiceServiceImpl) UpdateInvoiceStatus(ctx context.Context, id string,
 		return err
 	}
 
-	if err := invoice.TransitionTo(newStatus); err != nil {
+	// Use FSM to transition to new status
+	fsm := NewInvoiceFSM(invoice)
+	if err := fsm.TransitionTo(newStatus); err != nil {
 		return err
 	}
 
@@ -470,4 +580,33 @@ func (s *InvoiceServiceImpl) matchesSearch(invoice *Invoice, searchTerm string) 
 	}
 
 	return false
+}
+
+// validatePaymentAmount validates if a payment amount is acceptable (business logic moved from domain).
+func (s *InvoiceServiceImpl) validatePaymentAmount(invoice *Invoice, paymentAmount *shared.Money) (string, error) {
+	if paymentAmount == nil {
+		return "", errors.New("payment amount cannot be nil")
+	}
+
+	requiredAmount, err := invoice.GetCryptoAmount()
+	if err != nil {
+		return "", err
+	}
+
+	// Check currency match
+	if paymentAmount.Currency() != requiredAmount.Currency() {
+		return "", errors.New("payment currency does not match invoice currency")
+	}
+
+	// Check if payment is sufficient
+	if paymentAmount.GreaterThanOrEqual(requiredAmount) {
+		return "sufficient", nil
+	}
+
+	// Check if underpayment is within tolerance
+	if invoice.PaymentTolerance().IsUnderpayment(requiredAmount, paymentAmount) {
+		return "", errors.New("payment amount is below the minimum threshold")
+	}
+
+	return "partial", nil
 }

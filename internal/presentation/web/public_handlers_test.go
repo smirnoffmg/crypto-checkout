@@ -30,8 +30,11 @@ func TestPublicInvoiceEndpoint(t *testing.T) {
 	t.Run("GetPublicInvoice_Success", func(t *testing.T) {
 		// Given: First create an invoice to retrieve publicly
 		createReq := web.CreateInvoiceRequest{
+			Title:       "Public Test Invoice",
+			Description: "Test invoice for public viewing",
 			Items: []web.InvoiceItemRequest{
 				{
+					Name:        "Test Item",
 					Description: "Test item for public view",
 					Quantity:    "1",
 					UnitPrice:   "25.00",
@@ -76,7 +79,7 @@ func TestPublicInvoiceEndpoint(t *testing.T) {
 		require.Equal(t, invoiceID, response.ID)
 		require.Equal(t, "created", response.Status)
 		require.NotEmpty(t, response.Items)
-		require.Equal(t, "25", response.Total)
+		require.Equal(t, "25.00", response.Total)
 		require.NotEmpty(t, response.CreatedAt)
 	})
 
@@ -140,8 +143,11 @@ func TestPublicInvoiceStatusEndpoint(t *testing.T) {
 	t.Run("GetPublicInvoiceStatus_Success", func(t *testing.T) {
 		// Given: First create an invoice to check status
 		createReq := web.CreateInvoiceRequest{
+			Title:       "Status Test Invoice",
+			Description: "Test invoice for status checking",
 			Items: []web.InvoiceItemRequest{
 				{
+					Name:        "Test Item",
 					Description: "Test item for status check",
 					Quantity:    "1",
 					UnitPrice:   "30.00",
@@ -225,8 +231,11 @@ func TestPublicInvoiceEventsEndpoint(t *testing.T) {
 	t.Run("GetPublicInvoiceEvents_Success", func(t *testing.T) {
 		// Given: First create an invoice to get events for
 		createReq := web.CreateInvoiceRequest{
+			Title:       "Events Test Invoice",
+			Description: "Test invoice for events testing",
 			Items: []web.InvoiceItemRequest{
 				{
+					Name:        "Test Item",
 					Description: "Test item for events",
 					Quantity:    "1",
 					UnitPrice:   "35.00",
