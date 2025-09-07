@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"crypto-checkout/internal/presentation/web"
@@ -34,16 +33,16 @@ func TestAnalyticsEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
 		var response web.AnalyticsResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.NotNil(t, response.Summary)
-		assert.NotNil(t, response.Revenue)
-		assert.NotNil(t, response.Invoices)
-		assert.NotNil(t, response.Payments)
+		require.NotNil(t, response.Summary)
+		require.NotNil(t, response.Revenue)
+		require.NotNil(t, response.Invoices)
+		require.NotNil(t, response.Payments)
 	})
 
 	t.Run("GetAnalytics_WithDateRange", func(t *testing.T) {
@@ -56,14 +55,14 @@ func TestAnalyticsEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
 		var response web.AnalyticsResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.NotNil(t, response.Summary)
-		assert.NotNil(t, response.Revenue)
+		require.NotNil(t, response.Summary)
+		require.NotNil(t, response.Revenue)
 	})
 
 	t.Run("GetAnalytics_Unauthorized", func(t *testing.T) {
@@ -76,13 +75,13 @@ func TestAnalyticsEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 
 		var response web.ErrorResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "authentication_error", response.Error)
-		assert.Contains(t, response.Message, "Authorization header")
+		require.Equal(t, "authentication_error", response.Error)
+		require.Contains(t, response.Message, "Authorization header")
 	})
 }

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"crypto-checkout/internal/presentation/web"
@@ -34,16 +33,16 @@ func TestListInvoicesEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
 		var response web.ListInvoicesResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.NotNil(t, response.Invoices)
-		assert.GreaterOrEqual(t, response.Total, 0)
-		assert.GreaterOrEqual(t, response.Page, 1)
-		assert.GreaterOrEqual(t, response.Limit, 1)
+		require.NotNil(t, response.Invoices)
+		require.GreaterOrEqual(t, response.Total, 0)
+		require.GreaterOrEqual(t, response.Page, 1)
+		require.GreaterOrEqual(t, response.Limit, 1)
 	})
 
 	t.Run("ListInvoices_WithPagination", func(t *testing.T) {
@@ -56,14 +55,14 @@ func TestListInvoicesEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
 		var response web.ListInvoicesResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, response.Page)
-		assert.Equal(t, 10, response.Limit)
+		require.Equal(t, 2, response.Page)
+		require.Equal(t, 10, response.Limit)
 	})
 
 	t.Run("ListInvoices_WithStatusFilter", func(t *testing.T) {
@@ -76,7 +75,7 @@ func TestListInvoicesEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
 		var response web.ListInvoicesResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
@@ -84,7 +83,7 @@ func TestListInvoicesEndpoint(t *testing.T) {
 
 		// All returned invoices should have the filtered status
 		for _, inv := range response.Invoices {
-			assert.Equal(t, "pending", inv.Status)
+			require.Equal(t, "pending", inv.Status)
 		}
 	})
 
@@ -98,13 +97,13 @@ func TestListInvoicesEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 
 		var response web.ErrorResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "authentication_error", response.Error)
-		assert.Contains(t, response.Message, "Authorization header")
+		require.Equal(t, "authentication_error", response.Error)
+		require.Contains(t, response.Message, "Authorization header")
 	})
 }

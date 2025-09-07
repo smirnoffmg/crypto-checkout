@@ -5,24 +5,24 @@ import (
 
 	"crypto-checkout/internal/domain/shared"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBlockchainNetwork(t *testing.T) {
 	t.Run("String - valid networks", func(t *testing.T) {
-		assert.Equal(t, "tron", shared.NetworkTron.String())
-		assert.Equal(t, "ethereum", shared.NetworkEthereum.String())
-		assert.Equal(t, "bitcoin", shared.NetworkBitcoin.String())
+		require.Equal(t, "tron", shared.NetworkTron.String())
+		require.Equal(t, "ethereum", shared.NetworkEthereum.String())
+		require.Equal(t, "bitcoin", shared.NetworkBitcoin.String())
 	})
 
 	t.Run("IsValid - valid networks", func(t *testing.T) {
-		assert.True(t, shared.NetworkTron.IsValid())
-		assert.True(t, shared.NetworkEthereum.IsValid())
-		assert.True(t, shared.NetworkBitcoin.IsValid())
+		require.True(t, shared.NetworkTron.IsValid())
+		require.True(t, shared.NetworkEthereum.IsValid())
+		require.True(t, shared.NetworkBitcoin.IsValid())
 	})
 
 	t.Run("IsValid - invalid network", func(t *testing.T) {
 		invalidNetwork := shared.BlockchainNetwork("invalid")
-		assert.False(t, invalidNetwork.IsValid())
+		require.False(t, invalidNetwork.IsValid())
 	})
 }

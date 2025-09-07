@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"crypto-checkout/test/testutil"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestAPIComplianceHealthCheck tests the health check endpoint.
@@ -166,7 +166,7 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 				var errorResponse map[string]interface{}
 				if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
 					// Current implementation error response structure
-					if !assert.Contains(t, errorResponse, "error", "Error response should contain 'error' field. Response: %s", string(body)) {
+					if !require.Contains(t, errorResponse, "error", "Error response should contain 'error' field. Response: %s", string(body)) {
 						t.Logf("Full error response: %+v", errorResponse)
 					}
 
@@ -180,7 +180,7 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 
 					// For now, verify basic error structure exists
 					if errorField, exists := errorResponse["error"]; exists {
-						assert.NotEmpty(t, errorField, "Error field should not be empty")
+						require.NotEmpty(t, errorField, "Error field should not be empty")
 					}
 				} else {
 					t.Logf("Failed to parse error response as JSON: %v. Raw response: %s", unmarshalErr, string(body))
@@ -387,7 +387,7 @@ func TestAPIComplianceStatusCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := makeTestRequest(t, baseURL, tt.method, tt.path, tt.expectedStatus, tt.needsAuth)
 			defer resp.Body.Close()
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode, tt.description)
+			require.Equal(t, tt.expectedStatus, resp.StatusCode, tt.description)
 		})
 	}
 }
@@ -558,29 +558,29 @@ func TestAPIComplianceInvoiceStructure(t *testing.T) {
 	}
 
 	for _, field := range requiredFields {
-		if !assert.Contains(t, response, field, "Response should contain %s field. Full response: %+v", field, response) {
+		if !require.Contains(t, response, field, "Response should contain %s field. Full response: %+v", field, response) {
 			t.Logf("Missing field '%s' in invoice response. Available fields: %v", field, getMapKeys(response))
 		}
 	}
 
 	// Verify items structure
 	items, ok := response["items"].([]interface{})
-	if !assert.True(t, ok, "Items should be an array. Actual type: %T, Value: %+v", response["items"], response["items"]) {
+	if !require.True(t, ok, "Items should be an array. Actual type: %T, Value: %+v", response["items"], response["items"]) {
 		t.Logf("Full response: %+v", response)
 	}
-	if !assert.Len(t, items, 2, "Should have 2 items. Actual count: %d", len(items)) {
+	if !require.Len(t, items, 2, "Should have 2 items. Actual count: %d", len(items)) {
 		t.Logf("Items array: %+v", items)
 	}
 
 	// Verify first item structure
 	if len(items) > 0 {
 		item1, ok := items[0].(map[string]interface{})
-		if !assert.True(t, ok, "First item should be a map. Actual type: %T, Value: %+v", items[0], items[0]) {
+		if !require.True(t, ok, "First item should be a map. Actual type: %T, Value: %+v", items[0], items[0]) {
 			t.Logf("Items array: %+v", items)
 		} else {
 			itemFields := []string{"description", "unit_price", "quantity", "total"}
 			for _, field := range itemFields {
-				if !assert.Contains(t, item1, field, "Item should contain %s field. Item: %+v", field, item1) {
+				if !require.Contains(t, item1, field, "Item should contain %s field. Item: %+v", field, item1) {
 					t.Logf("Available item fields: %v", getMapKeys(item1))
 				}
 			}
@@ -588,21 +588,21 @@ func TestAPIComplianceInvoiceStructure(t *testing.T) {
 	}
 
 	// Verify status is created (transitions to pending after being viewed)
-	if !assert.Equal(t, "created", response["status"], "New invoice should have created status. Actual status: %v", response["status"]) {
+	if !require.Equal(t, "created", response["status"], "New invoice should have created status. Actual status: %v", response["status"]) {
 		t.Logf("Full response: %+v", response)
 	}
 
 	// Verify numeric fields are strings (as per API.md)
-	if !assert.IsType(t, "", response["subtotal"], "Subtotal should be string. Actual type: %T, Value: %v", response["subtotal"], response["subtotal"]) {
+	if !require.IsType(t, "", response["subtotal"], "Subtotal should be string. Actual type: %T, Value: %v", response["subtotal"], response["subtotal"]) {
 		t.Logf("Full response: %+v", response)
 	}
-	if !assert.IsType(t, "", response["tax_amount"], "Tax amount should be string. Actual type: %T, Value: %v", response["tax_amount"], response["tax_amount"]) {
+	if !require.IsType(t, "", response["tax_amount"], "Tax amount should be string. Actual type: %T, Value: %v", response["tax_amount"], response["tax_amount"]) {
 		t.Logf("Full response: %+v", response)
 	}
-	if !assert.IsType(t, "", response["total"], "Total should be string. Actual type: %T, Value: %v", response["total"], response["total"]) {
+	if !require.IsType(t, "", response["total"], "Total should be string. Actual type: %T, Value: %v", response["total"], response["total"]) {
 		t.Logf("Full response: %+v", response)
 	}
-	if !assert.IsType(t, "", response["tax_rate"], "Tax rate should be string. Actual type: %T, Value: %v", response["tax_rate"], response["tax_rate"]) {
+	if !require.IsType(t, "", response["tax_rate"], "Tax rate should be string. Actual type: %T, Value: %v", response["tax_rate"], response["tax_rate"]) {
 		t.Logf("Full response: %+v", response)
 	}
 

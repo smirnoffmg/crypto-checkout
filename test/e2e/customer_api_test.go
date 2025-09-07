@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"crypto-checkout/test/testutil"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestCustomerAPIViewInvoice tests the customer API view invoice endpoint.
@@ -65,19 +65,19 @@ func TestCustomerAPIViewInvoice(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
 
 	// Verify HTML response contains invoice data
 	body, _ := io.ReadAll(resp.Body)
 	htmlContent := string(body)
 
 	// Check that HTML contains invoice information
-	assert.Contains(t, htmlContent, invoiceID)
-	assert.Contains(t, htmlContent, "VPN Premium Plan")
-	assert.Contains(t, htmlContent, "Additional Static IP")
-	assert.Contains(t, htmlContent, "9.99")
-	assert.Contains(t, htmlContent, "2.50")
+	require.Contains(t, htmlContent, invoiceID)
+	require.Contains(t, htmlContent, "VPN Premium Plan")
+	require.Contains(t, htmlContent, "Additional Static IP")
+	require.Contains(t, htmlContent, "9.99")
+	require.Contains(t, htmlContent, "2.50")
 }
 
 // TestCustomerAPIViewInvoiceNotFound tests 404 for non-existent invoice.
@@ -90,7 +90,7 @@ func TestCustomerAPIViewInvoiceNotFound(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // TestCustomerAPIGetQRCode tests the QR code endpoint.
@@ -143,13 +143,13 @@ func TestCustomerAPIGetQRCode(t *testing.T) {
 
 	// QR code should return 500 error if no payment address is assigned
 	// This is expected behavior as per the current implementation
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	// Verify error response
 	var errorResponse map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
 	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		assert.Contains(t, errorResponse, "error")
+		require.Contains(t, errorResponse, "error")
 	}
 }
 
@@ -163,7 +163,7 @@ func TestCustomerAPIGetQRCodeNotFound(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // TestCustomerAPIWebSocketConnection tests WebSocket connection for real-time updates.
@@ -218,7 +218,7 @@ func TestCustomerAPIWebSocketConnection(t *testing.T) {
 
 	// WebSocket endpoint should return 400 Bad Request for HTTP GET
 	// (WebSocket requires upgrade)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 // TestCustomerAPIWebSocketNotFound tests WebSocket for non-existent invoice.
@@ -231,7 +231,7 @@ func TestCustomerAPIWebSocketNotFound(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // TestCustomerAPIPaymentStatusEndpoint tests the payment status endpoint.
@@ -283,13 +283,13 @@ func TestCustomerAPIPaymentStatusEndpoint(t *testing.T) {
 	defer resp.Body.Close()
 
 	// This endpoint is not implemented yet, so it should return 501 Not Implemented
-	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
 
 	// Verify error response
 	var errorResponse map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
 	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		assert.Contains(t, errorResponse, "error")
-		assert.Contains(t, errorResponse, "message")
+		require.Contains(t, errorResponse, "error")
+		require.Contains(t, errorResponse, "message")
 	}
 }

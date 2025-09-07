@@ -14,6 +14,7 @@ import (
 
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/payment"
+	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/pkg/config"
 )
 
@@ -202,8 +203,8 @@ func (h *Handler) GetInvoiceStatus(c *gin.Context) {
 	status, err := h.invoiceService.GetInvoiceStatus(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice status", zap.Error(err), zap.String("invoice_id", id))
-		if errors.Is(err, invoice.ErrInvoiceNotFound) {
-			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+		if errors.Is(err, shared.ErrNotFound) {
+			c.JSON(http.StatusNotFound, createNotFoundErrorResponse("invoice not found"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("failed to retrieve invoice status", err))
@@ -322,8 +323,8 @@ func (h *Handler) CancelInvoice(c *gin.Context) {
 	err := h.invoiceService.CancelInvoice(c.Request.Context(), id, req.Reason)
 	if err != nil {
 		h.Logger.Error("Failed to cancel invoice", zap.Error(err), zap.String("invoice_id", id))
-		if errors.Is(err, invoice.ErrInvoiceNotFound) {
-			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+		if errors.Is(err, shared.ErrNotFound) {
+			c.JSON(http.StatusNotFound, createNotFoundErrorResponse("invoice not found"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("Failed to cancel invoice", err))

@@ -78,6 +78,16 @@ func createAuthErrorResponse(errorType, code, message string) ErrorResponse {
 	}
 }
 
+// createNotFoundErrorResponse creates a not found error response matching API.md format.
+func createNotFoundErrorResponse(message string) ErrorResponse {
+	return ErrorResponse{
+		Error:     "not_found",
+		Message:   message,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		RequestID: generateRequestID(),
+	}
+}
+
 // generateRequestID generates a simple request ID for error responses.
 func generateRequestID() string {
 	// Simple implementation - in production, use proper UUID or correlation ID

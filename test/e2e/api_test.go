@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"crypto-checkout/test/testutil"
@@ -24,7 +23,7 @@ func TestHealthCheckE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -33,7 +32,7 @@ func TestHealthCheckE2E(t *testing.T) {
 	err = json.Unmarshal(body, &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "healthy", response["status"])
+	require.Equal(t, "healthy", response["status"])
 }
 
 func TestCreateInvoiceE2E(t *testing.T) {
@@ -73,7 +72,7 @@ func TestCreateInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -83,17 +82,17 @@ func TestCreateInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify response structure
-	assert.Contains(t, response, "id")
-	assert.Contains(t, response, "status")
-	assert.Contains(t, response, "total")
-	assert.Contains(t, response, "created_at")
+	require.Contains(t, response, "id")
+	require.Contains(t, response, "status")
+	require.Contains(t, response, "total")
+	require.Contains(t, response, "created_at")
 
 	// Verify invoice status
-	assert.Equal(t, "created", response["status"])
+	require.Equal(t, "created", response["status"])
 
 	// Verify total amount calculation
 	expectedTotal := "131.98" // (99.99 + 19.99) * 1.10
-	assert.Equal(t, expectedTotal, response["total"])
+	require.Equal(t, expectedTotal, response["total"])
 }
 
 func TestGetInvoiceE2E(t *testing.T) {
@@ -128,7 +127,7 @@ func TestGetInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer createResp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, createResp.StatusCode)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
 
 	var createResponse map[string]interface{}
 	err = json.NewDecoder(createResp.Body).Decode(&createResponse)
@@ -147,8 +146,8 @@ func TestGetInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, getResp.StatusCode)
-	assert.Equal(t, "application/json; charset=utf-8", getResp.Header.Get("Content-Type"))
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	require.Equal(t, "application/json; charset=utf-8", getResp.Header.Get("Content-Type"))
 
 	body, err := io.ReadAll(getResp.Body)
 	require.NoError(t, err)
@@ -158,9 +157,9 @@ func TestGetInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the retrieved invoice matches the created one
-	assert.Equal(t, invoiceID, getResponse["id"])
-	assert.Equal(t, "created", getResponse["status"])
-	assert.Equal(t, "50.00", getResponse["total"])
+	require.Equal(t, invoiceID, getResponse["id"])
+	require.Equal(t, "created", getResponse["status"])
+	require.Equal(t, "50.00", getResponse["total"])
 }
 
 func TestGetPublicInvoiceE2E(t *testing.T) {
@@ -195,7 +194,7 @@ func TestGetPublicInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer createResp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, createResp.StatusCode)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
 
 	var createResponse map[string]interface{}
 	err = json.NewDecoder(createResp.Body).Decode(&createResponse)
@@ -209,17 +208,17 @@ func TestGetPublicInvoiceE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, getResp.StatusCode)
-	assert.Equal(t, "text/html; charset=utf-8", getResp.Header.Get("Content-Type"))
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	require.Equal(t, "text/html; charset=utf-8", getResp.Header.Get("Content-Type"))
 
 	body, err := io.ReadAll(getResp.Body)
 	require.NoError(t, err)
 
 	// Verify HTML content contains expected elements
 	htmlContent := string(body)
-	assert.Contains(t, htmlContent, "Crypto Checkout")
-	assert.Contains(t, htmlContent, "Public Test Item")
-	assert.Contains(t, htmlContent, "54.00") // (25.00 * 2) * 1.08
+	require.Contains(t, htmlContent, "Crypto Checkout")
+	require.Contains(t, htmlContent, "Public Test Item")
+	require.Contains(t, htmlContent, "54.00") // (25.00 * 2) * 1.08
 }
 
 func TestGetInvoiceQRE2E(t *testing.T) {
@@ -254,7 +253,7 @@ func TestGetInvoiceQRE2E(t *testing.T) {
 	require.NoError(t, err)
 	defer createResp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, createResp.StatusCode)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
 
 	var createResponse map[string]interface{}
 	err = json.NewDecoder(createResp.Body).Decode(&createResponse)
@@ -270,7 +269,7 @@ func TestGetInvoiceQRE2E(t *testing.T) {
 
 	// QR code generation fails because invoice has no payment address assigned
 	// This is expected behavior - invoices need payment addresses to generate QR codes
-	assert.Equal(t, http.StatusInternalServerError, qrResp.StatusCode)
+	require.Equal(t, http.StatusInternalServerError, qrResp.StatusCode)
 
 	// Verify error response
 	errorBody, err := io.ReadAll(qrResp.Body)
@@ -280,7 +279,7 @@ func TestGetInvoiceQRE2E(t *testing.T) {
 	err = json.Unmarshal(errorBody, &errorResponse)
 	require.NoError(t, err)
 
-	assert.Contains(t, errorResponse, "error")
+	require.Contains(t, errorResponse, "error")
 	// The error message might be in different formats, so let's check for the key presence
-	assert.NotNil(t, errorResponse["error"])
+	require.NotNil(t, errorResponse["error"])
 }

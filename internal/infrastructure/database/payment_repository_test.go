@@ -10,7 +10,6 @@ import (
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/pkg/config"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -70,9 +69,9 @@ func TestPaymentRepository(t *testing.T) {
 			var model database.PaymentModel
 			err = db.First(&model, "id = ?", p.ID()).Error
 			require.NoError(t, err)
-			assert.Equal(t, string(p.ID()), model.ID)
-			assert.Equal(t, string(p.InvoiceID()), model.InvoiceID)
-			assert.Equal(t, p.TransactionHash().String(), model.TxHash)
+			require.Equal(t, string(p.ID()), model.ID)
+			require.Equal(t, string(p.InvoiceID()), model.InvoiceID)
+			require.Equal(t, p.TransactionHash().String(), model.TxHash)
 		})
 
 		t.Run("Nil_Payment", func(t *testing.T) {
@@ -81,8 +80,8 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			err := repo.Save(ctx, nil)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 
 		t.Run("Update_Existing_Payment", func(t *testing.T) {
@@ -106,8 +105,8 @@ func TestPaymentRepository(t *testing.T) {
 			var model database.PaymentModel
 			err = db.First(&model, "id = ?", p.ID()).Error
 			require.NoError(t, err)
-			assert.Equal(t, 5, model.Confirmations)
-			assert.Equal(t, "confirming", model.Status)
+			require.Equal(t, 5, model.Confirmations)
+			require.Equal(t, "confirming", model.Status)
 		})
 	})
 
@@ -127,9 +126,9 @@ func TestPaymentRepository(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, found)
 
-			assert.Equal(t, p.ID(), found.ID())
-			assert.Equal(t, p.InvoiceID(), found.InvoiceID())
-			assert.Equal(t, p.TransactionHash().String(), found.TransactionHash().String())
+			require.Equal(t, p.ID(), found.ID())
+			require.Equal(t, p.InvoiceID(), found.InvoiceID())
+			require.Equal(t, p.TransactionHash().String(), found.TransactionHash().String())
 		})
 
 		t.Run("Non_Existent_Payment", func(t *testing.T) {
@@ -138,9 +137,9 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			found, err := repo.FindByID(ctx, "non-existent-id")
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "not found")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "not found")
 		})
 	})
 
@@ -161,8 +160,8 @@ func TestPaymentRepository(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, found)
 
-			assert.Equal(t, p.ID(), found.ID())
-			assert.Equal(t, transactionHash.String(), found.TransactionHash().String())
+			require.Equal(t, p.ID(), found.ID())
+			require.Equal(t, transactionHash.String(), found.TransactionHash().String())
 		})
 
 		t.Run("Non_Existent_Transaction_Hash", func(t *testing.T) {
@@ -173,9 +172,9 @@ func TestPaymentRepository(t *testing.T) {
 			transactionHash, _ := payment.NewTransactionHash("0x0000000000000000000000000000000000000000000000000000000000000000")
 
 			found, err := repo.FindByTransactionHash(ctx, transactionHash)
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "not found")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "not found")
 		})
 
 		t.Run("Nil_Transaction_Hash", func(t *testing.T) {
@@ -184,9 +183,9 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			found, err := repo.FindByTransactionHash(ctx, nil)
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 	})
 
@@ -223,10 +222,10 @@ func TestPaymentRepository(t *testing.T) {
 			// Find pending payments (since FindByInvoiceID doesn't exist)
 			payments, err := repo.FindPending(ctx)
 			require.NoError(t, err)
-			assert.Len(t, payments, 3)
+			require.Len(t, payments, 3)
 
 			for _, p := range payments {
-				assert.Equal(t, invoiceID, p.InvoiceID())
+				require.Equal(t, invoiceID, p.InvoiceID())
 			}
 		})
 
@@ -237,7 +236,7 @@ func TestPaymentRepository(t *testing.T) {
 
 			payments, err := repo.FindPending(ctx)
 			require.NoError(t, err)
-			assert.Len(t, payments, 0)
+			require.Len(t, payments, 0)
 		})
 	})
 
@@ -273,10 +272,10 @@ func TestPaymentRepository(t *testing.T) {
 			// Find by address
 			payments, err := repo.FindByAddress(ctx, address)
 			require.NoError(t, err)
-			assert.Len(t, payments, 2)
+			require.Len(t, payments, 2)
 
 			for _, p := range payments {
-				assert.Equal(t, address.String(), p.ToAddress().String())
+				require.Equal(t, address.String(), p.ToAddress().String())
 			}
 		})
 
@@ -289,7 +288,7 @@ func TestPaymentRepository(t *testing.T) {
 
 			payments, err := repo.FindByAddress(ctx, address)
 			require.NoError(t, err)
-			assert.Len(t, payments, 0)
+			require.Len(t, payments, 0)
 		})
 
 		t.Run("Nil_Address", func(t *testing.T) {
@@ -298,9 +297,9 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			payments, err := repo.FindByAddress(ctx, nil)
-			assert.Error(t, err)
-			assert.Nil(t, payments)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Nil(t, payments)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 	})
 
@@ -324,13 +323,13 @@ func TestPaymentRepository(t *testing.T) {
 			// Find by status
 			payments, err := repo.FindByStatus(ctx, payment.StatusDetected)
 			require.NoError(t, err)
-			assert.Len(t, payments, 1)
-			assert.Equal(t, payment.StatusDetected, payments[0].Status())
+			require.Len(t, payments, 1)
+			require.Equal(t, payment.StatusDetected, payments[0].Status())
 
 			payments, err = repo.FindByStatus(ctx, payment.StatusConfirming)
 			require.NoError(t, err)
-			assert.Len(t, payments, 1)
-			assert.Equal(t, payment.StatusConfirming, payments[0].Status())
+			require.Len(t, payments, 1)
+			require.Equal(t, payment.StatusConfirming, payments[0].Status())
 		})
 
 		t.Run("No_Payments_With_Status", func(t *testing.T) {
@@ -340,7 +339,7 @@ func TestPaymentRepository(t *testing.T) {
 
 			payments, err := repo.FindByStatus(ctx, payment.StatusConfirmed)
 			require.NoError(t, err)
-			assert.Len(t, payments, 0)
+			require.Len(t, payments, 0)
 		})
 	})
 
@@ -363,11 +362,11 @@ func TestPaymentRepository(t *testing.T) {
 			var model database.PaymentModel
 			err = db.Unscoped().First(&model, "id = ?", p.ID()).Error
 			require.NoError(t, err)
-			assert.NotNil(t, model.DeletedAt)
+			require.NotNil(t, model.DeletedAt)
 
 			// Should not be found in normal queries
 			_, err = repo.FindByID(ctx, string(p.ID()))
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 
 		t.Run("Non_Existent_Payment", func(t *testing.T) {
@@ -376,8 +375,8 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			err := repo.Delete(ctx, "non-existent-id")
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "not found")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "not found")
 		})
 	})
 
@@ -405,29 +404,29 @@ func TestPaymentRepository(t *testing.T) {
 			require.NotNil(t, retrieved)
 
 			// Verify all fields match
-			assert.Equal(t, original.ID(), retrieved.ID())
-			assert.Equal(t, original.InvoiceID(), retrieved.InvoiceID())
-			assert.Equal(t, original.Amount().Amount().String(), retrieved.Amount().Amount().String())
-			assert.Equal(t, original.FromAddress(), retrieved.FromAddress())
-			assert.Equal(t, original.ToAddress().String(), retrieved.ToAddress().String())
-			assert.Equal(t, original.TransactionHash().String(), retrieved.TransactionHash().String())
-			assert.Equal(t, original.Status(), retrieved.Status())
-			assert.Equal(t, original.Confirmations().Int(), retrieved.Confirmations().Int())
-			assert.Equal(t, original.RequiredConfirmations(), retrieved.RequiredConfirmations())
+			require.Equal(t, original.ID(), retrieved.ID())
+			require.Equal(t, original.InvoiceID(), retrieved.InvoiceID())
+			require.Equal(t, original.Amount().Amount().String(), retrieved.Amount().Amount().String())
+			require.Equal(t, original.FromAddress(), retrieved.FromAddress())
+			require.Equal(t, original.ToAddress().String(), retrieved.ToAddress().String())
+			require.Equal(t, original.TransactionHash().String(), retrieved.TransactionHash().String())
+			require.Equal(t, original.Status(), retrieved.Status())
+			require.Equal(t, original.Confirmations().Int(), retrieved.Confirmations().Int())
+			require.Equal(t, original.RequiredConfirmations(), retrieved.RequiredConfirmations())
 
 			// Verify block info
 			originalBlockInfo := original.BlockInfo()
 			retrievedBlockInfo := retrieved.BlockInfo()
 			if originalBlockInfo != nil && retrievedBlockInfo != nil {
-				assert.Equal(t, originalBlockInfo.Number(), retrievedBlockInfo.Number())
-				assert.Equal(t, originalBlockInfo.Hash(), retrievedBlockInfo.Hash())
+				require.Equal(t, originalBlockInfo.Number(), retrievedBlockInfo.Number())
+				require.Equal(t, originalBlockInfo.Hash(), retrievedBlockInfo.Hash())
 			}
 
 			// Verify network fee
 			originalFee := original.NetworkFee()
 			retrievedFee := retrieved.NetworkFee()
 			if originalFee != nil && retrievedFee != nil {
-				assert.Equal(t, originalFee.Fee().Amount().String(), retrievedFee.Fee().Amount().String())
+				require.Equal(t, originalFee.Fee().Amount().String(), retrievedFee.Fee().Amount().String())
 			}
 		})
 	})

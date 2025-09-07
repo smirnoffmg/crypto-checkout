@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -176,7 +175,7 @@ func testApplicationCreation(t *testing.T) {
 
 	// Test that the application can be validated
 	err := fx.ValidateApp(appOptions...)
-	assert.NoError(t, err, "Application should be valid")
+	require.NoError(t, err, "Application should be valid")
 }
 
 // testDependencyInjection verifies that all dependencies are resolved correctly.
@@ -375,9 +374,9 @@ func TestApplicationErrorHandling(t *testing.T) {
 
 			err := fx.ValidateApp(tt.options...)
 			if tt.expectError {
-				assert.Error(t, err, "Expected validation to fail")
+				require.Error(t, err, "Expected validation to fail")
 			} else {
-				assert.NoError(t, err, "Expected validation to pass")
+				require.NoError(t, err, "Expected validation to pass")
 			}
 		})
 	}

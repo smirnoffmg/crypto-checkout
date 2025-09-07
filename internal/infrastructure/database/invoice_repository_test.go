@@ -11,7 +11,6 @@ import (
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/pkg/config"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -85,8 +84,8 @@ func TestInvoiceRepository(t *testing.T) {
 			var model database.InvoiceModel
 			err = db.First(&model, "id = ?", inv.ID()).Error
 			require.NoError(t, err)
-			assert.Equal(t, inv.ID(), model.ID)
-			assert.Equal(t, inv.Title(), model.Title)
+			require.Equal(t, inv.ID(), model.ID)
+			require.Equal(t, inv.Title(), model.Title)
 		})
 
 		t.Run("Nil_Invoice", func(t *testing.T) {
@@ -95,8 +94,8 @@ func TestInvoiceRepository(t *testing.T) {
 			ctx := context.Background()
 
 			err := repo.Save(ctx, nil)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 
 		t.Run("Update_Existing_Invoice", func(t *testing.T) {
@@ -120,8 +119,8 @@ func TestInvoiceRepository(t *testing.T) {
 			var model database.InvoiceModel
 			err = db.First(&model, "id = ?", inv.ID()).Error
 			require.NoError(t, err)
-			assert.Equal(t, "updated-customer-id", *model.CustomerID)
-			assert.Equal(t, "pending", model.Status)
+			require.Equal(t, "updated-customer-id", *model.CustomerID)
+			require.Equal(t, "pending", model.Status)
 		})
 	})
 
@@ -141,9 +140,9 @@ func TestInvoiceRepository(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, found)
 
-			assert.Equal(t, inv.ID(), found.ID())
-			assert.Equal(t, inv.Title(), found.Title())
-			assert.Equal(t, inv.MerchantID(), found.MerchantID())
+			require.Equal(t, inv.ID(), found.ID())
+			require.Equal(t, inv.Title(), found.Title())
+			require.Equal(t, inv.MerchantID(), found.MerchantID())
 		})
 
 		t.Run("Non_Existent_Invoice", func(t *testing.T) {
@@ -152,9 +151,9 @@ func TestInvoiceRepository(t *testing.T) {
 			ctx := context.Background()
 
 			found, err := repo.FindByID(ctx, "non-existent-id")
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "not found")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "not found")
 		})
 
 		t.Run("Empty_ID", func(t *testing.T) {
@@ -163,9 +162,9 @@ func TestInvoiceRepository(t *testing.T) {
 			ctx := context.Background()
 
 			found, err := repo.FindByID(ctx, "")
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 	})
 
@@ -188,10 +187,10 @@ func TestInvoiceRepository(t *testing.T) {
 			// Find active invoices (since FindByMerchantID doesn't exist)
 			invoices, err := repo.FindActive(ctx)
 			require.NoError(t, err)
-			assert.Len(t, invoices, 3)
+			require.Len(t, invoices, 3)
 
 			for _, inv := range invoices {
-				assert.Equal(t, merchantID, inv.MerchantID())
+				require.Equal(t, merchantID, inv.MerchantID())
 			}
 		})
 
@@ -202,7 +201,7 @@ func TestInvoiceRepository(t *testing.T) {
 
 			invoices, err := repo.FindActive(ctx)
 			require.NoError(t, err)
-			assert.Len(t, invoices, 0)
+			require.Len(t, invoices, 0)
 		})
 	})
 
@@ -225,8 +224,8 @@ func TestInvoiceRepository(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, found)
 
-			assert.Equal(t, inv.ID(), found.ID())
-			assert.Equal(t, paymentAddress.String(), found.PaymentAddress().String())
+			require.Equal(t, inv.ID(), found.ID())
+			require.Equal(t, paymentAddress.String(), found.PaymentAddress().String())
 		})
 
 		t.Run("Non_Existent_Address", func(t *testing.T) {
@@ -237,9 +236,9 @@ func TestInvoiceRepository(t *testing.T) {
 			paymentAddress, _ := shared.NewPaymentAddress("TNonExistentAddress123456789012345678901234567890", shared.NetworkTron)
 
 			found, err := repo.FindByPaymentAddress(ctx, paymentAddress)
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "not found")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "not found")
 		})
 
 		t.Run("Nil_Payment_Address", func(t *testing.T) {
@@ -248,9 +247,9 @@ func TestInvoiceRepository(t *testing.T) {
 			ctx := context.Background()
 
 			found, err := repo.FindByPaymentAddress(ctx, nil)
-			assert.Error(t, err)
-			assert.Nil(t, found)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Nil(t, found)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 	})
 
@@ -274,13 +273,13 @@ func TestInvoiceRepository(t *testing.T) {
 			// Find by status
 			invoices, err := repo.FindByStatus(ctx, invoice.StatusCreated)
 			require.NoError(t, err)
-			assert.Len(t, invoices, 1)
-			assert.Equal(t, invoice.StatusCreated, invoices[0].Status())
+			require.Len(t, invoices, 1)
+			require.Equal(t, invoice.StatusCreated, invoices[0].Status())
 
 			invoices, err = repo.FindByStatus(ctx, invoice.StatusPending)
 			require.NoError(t, err)
-			assert.Len(t, invoices, 1)
-			assert.Equal(t, invoice.StatusPending, invoices[0].Status())
+			require.Len(t, invoices, 1)
+			require.Equal(t, invoice.StatusPending, invoices[0].Status())
 		})
 
 		t.Run("No_Invoices_With_Status", func(t *testing.T) {
@@ -290,7 +289,7 @@ func TestInvoiceRepository(t *testing.T) {
 
 			invoices, err := repo.FindByStatus(ctx, invoice.StatusPaid)
 			require.NoError(t, err)
-			assert.Len(t, invoices, 0)
+			require.Len(t, invoices, 0)
 		})
 	})
 
@@ -313,11 +312,11 @@ func TestInvoiceRepository(t *testing.T) {
 			var model database.InvoiceModel
 			err = db.Unscoped().First(&model, "id = ?", inv.ID()).Error
 			require.NoError(t, err)
-			assert.NotNil(t, model.DeletedAt)
+			require.NotNil(t, model.DeletedAt)
 
 			// Should not be found in normal queries
 			_, err = repo.FindByID(ctx, inv.ID())
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 
 		t.Run("Non_Existent_Invoice", func(t *testing.T) {
@@ -326,8 +325,8 @@ func TestInvoiceRepository(t *testing.T) {
 			ctx := context.Background()
 
 			err := repo.Delete(ctx, "non-existent-id")
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "not found")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "not found")
 		})
 
 		t.Run("Empty_ID", func(t *testing.T) {
@@ -336,8 +335,8 @@ func TestInvoiceRepository(t *testing.T) {
 			ctx := context.Background()
 
 			err := repo.Delete(ctx, "")
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid input")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "invalid input")
 		})
 	})
 }

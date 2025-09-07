@@ -7,7 +7,6 @@ import (
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/domain/shared"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,15 +15,15 @@ func TestPayment(t *testing.T) {
 		testPayment := createTestPayment()
 		require.NotNil(t, testPayment)
 
-		assert.Equal(t, "test-payment-id", string(testPayment.ID()))
-		assert.Equal(t, "test-invoice-id", string(testPayment.InvoiceID()))
-		assert.Equal(t, "test-from-address", testPayment.FromAddress())
-		assert.Equal(t, payment.StatusDetected, testPayment.Status())
-		assert.Equal(t, 0, testPayment.Confirmations().Int())
-		assert.Equal(t, 6, testPayment.RequiredConfirmations())
-		assert.False(t, testPayment.IsConfirmed())
-		assert.False(t, testPayment.IsTerminal())
-		assert.True(t, testPayment.IsActive())
+		require.Equal(t, "test-payment-id", string(testPayment.ID()))
+		require.Equal(t, "test-invoice-id", string(testPayment.InvoiceID()))
+		require.Equal(t, "test-from-address", testPayment.FromAddress())
+		require.Equal(t, payment.StatusDetected, testPayment.Status())
+		require.Equal(t, 0, testPayment.Confirmations().Int())
+		require.Equal(t, 6, testPayment.RequiredConfirmations())
+		require.False(t, testPayment.IsConfirmed())
+		require.False(t, testPayment.IsTerminal())
+		require.True(t, testPayment.IsActive())
 	})
 
 	t.Run("NewPayment - empty ID", func(t *testing.T) {
@@ -37,8 +36,8 @@ func TestPayment(t *testing.T) {
 			createTestTransactionHash(),
 			6,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "payment ID cannot be empty")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "payment ID cannot be empty")
 	})
 
 	t.Run("NewPayment - empty invoice ID", func(t *testing.T) {
@@ -51,8 +50,8 @@ func TestPayment(t *testing.T) {
 			createTestTransactionHash(),
 			6,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invoice ID cannot be empty")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invoice ID cannot be empty")
 	})
 
 	t.Run("NewPayment - nil amount", func(t *testing.T) {
@@ -65,8 +64,8 @@ func TestPayment(t *testing.T) {
 			createTestTransactionHash(),
 			6,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "payment amount cannot be nil")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "payment amount cannot be nil")
 	})
 
 	t.Run("NewPayment - empty from address", func(t *testing.T) {
@@ -79,8 +78,8 @@ func TestPayment(t *testing.T) {
 			createTestTransactionHash(),
 			6,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "from address cannot be empty")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "from address cannot be empty")
 	})
 
 	t.Run("NewPayment - nil to address", func(t *testing.T) {
@@ -93,8 +92,8 @@ func TestPayment(t *testing.T) {
 			createTestTransactionHash(),
 			6,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "to address cannot be nil")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "to address cannot be nil")
 	})
 
 	t.Run("NewPayment - nil transaction hash", func(t *testing.T) {
@@ -107,8 +106,8 @@ func TestPayment(t *testing.T) {
 			nil,
 			6,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "transaction hash cannot be nil")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "transaction hash cannot be nil")
 	})
 
 	t.Run("NewPayment - negative required confirmations", func(t *testing.T) {
@@ -121,8 +120,8 @@ func TestPayment(t *testing.T) {
 			createTestTransactionHash(),
 			-1,
 		)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "required confirmations cannot be negative")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "required confirmations cannot be negative")
 	})
 
 	t.Run("UpdateConfirmations", func(t *testing.T) {
@@ -130,21 +129,21 @@ func TestPayment(t *testing.T) {
 
 		err := testPayment.UpdateConfirmations(nil, 3)
 		require.NoError(t, err)
-		assert.Equal(t, 3, testPayment.Confirmations().Int())
-		assert.False(t, testPayment.IsConfirmed())
+		require.Equal(t, 3, testPayment.Confirmations().Int())
+		require.False(t, testPayment.IsConfirmed())
 
 		err = testPayment.UpdateConfirmations(nil, 6)
 		require.NoError(t, err)
-		assert.Equal(t, 6, testPayment.Confirmations().Int())
-		assert.True(t, testPayment.IsConfirmed())
+		require.Equal(t, 6, testPayment.Confirmations().Int())
+		require.True(t, testPayment.IsConfirmed())
 	})
 
 	t.Run("UpdateConfirmations - negative count", func(t *testing.T) {
 		testPayment := createTestPayment()
 
 		err := testPayment.UpdateConfirmations(nil, -1)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid confirmation count")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid confirmation count")
 	})
 
 	t.Run("UpdateBlockInfo", func(t *testing.T) {
@@ -155,24 +154,24 @@ func TestPayment(t *testing.T) {
 
 		blockInfo := testPayment.BlockInfo()
 		require.NotNil(t, blockInfo)
-		assert.Equal(t, int64(12345), blockInfo.Number())
-		assert.Equal(t, "blockhash123", blockInfo.Hash())
+		require.Equal(t, int64(12345), blockInfo.Number())
+		require.Equal(t, "blockhash123", blockInfo.Hash())
 	})
 
 	t.Run("UpdateBlockInfo - negative block number", func(t *testing.T) {
 		testPayment := createTestPayment()
 
 		err := testPayment.UpdateBlockInfo(-1, "blockhash123")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "block number cannot be negative")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "block number cannot be negative")
 	})
 
 	t.Run("UpdateBlockInfo - empty hash", func(t *testing.T) {
 		testPayment := createTestPayment()
 
 		err := testPayment.UpdateBlockInfo(12345, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "block hash cannot be empty")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "block hash cannot be empty")
 	})
 
 	t.Run("UpdateNetworkFee", func(t *testing.T) {
@@ -186,25 +185,25 @@ func TestPayment(t *testing.T) {
 
 		networkFee := testPayment.NetworkFee()
 		require.NotNil(t, networkFee)
-		assert.Equal(t, fee, networkFee.Fee())
-		assert.Equal(t, shared.CryptoCurrencyBTC, networkFee.Currency())
+		require.Equal(t, fee, networkFee.Fee())
+		require.Equal(t, shared.CryptoCurrencyBTC, networkFee.Currency())
 	})
 
 	t.Run("UpdateNetworkFee - nil fee", func(t *testing.T) {
 		testPayment := createTestPayment()
 
 		err := testPayment.UpdateNetworkFee(nil, shared.CryptoCurrencyBTC)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "fee cannot be nil")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "fee cannot be nil")
 	})
 
 	t.Run("SetStatus - for testing", func(t *testing.T) {
 		testPayment := createTestPayment()
 
 		testPayment.SetStatus(payment.StatusConfirmed)
-		assert.Equal(t, payment.StatusConfirmed, testPayment.Status())
-		assert.True(t, testPayment.IsTerminal())
-		assert.False(t, testPayment.IsActive())
+		require.Equal(t, payment.StatusConfirmed, testPayment.Status())
+		require.True(t, testPayment.IsTerminal())
+		require.False(t, testPayment.IsActive())
 	})
 
 	t.Run("SetConfirmations - for testing", func(t *testing.T) {
@@ -212,7 +211,7 @@ func TestPayment(t *testing.T) {
 
 		err := testPayment.SetConfirmations(5)
 		require.NoError(t, err)
-		assert.Equal(t, 5, testPayment.Confirmations().Int())
+		require.Equal(t, 5, testPayment.Confirmations().Int())
 	})
 
 	t.Run("SetConfirmedAt - for testing", func(t *testing.T) {
@@ -221,7 +220,7 @@ func TestPayment(t *testing.T) {
 		confirmedAt := time.Now().UTC()
 		testPayment.SetConfirmedAt(confirmedAt)
 
-		assert.Equal(t, confirmedAt, *testPayment.ConfirmedAt())
+		require.Equal(t, confirmedAt, *testPayment.ConfirmedAt())
 	})
 }
 

@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -49,31 +48,31 @@ func TestAuthTokenEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
 		var response TokenResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.NotEmpty(t, response.AccessToken)
-		assert.Equal(t, "Bearer", response.TokenType)
-		assert.Equal(t, int64(3600), response.ExpiresIn)
-		assert.Equal(t, []string{"invoices:create", "invoices:read"}, response.Scope)
+		require.NotEmpty(t, response.AccessToken)
+		require.Equal(t, "Bearer", response.TokenType)
+		require.Equal(t, int64(3600), response.ExpiresIn)
+		require.Equal(t, []string{"invoices:create", "invoices:read"}, response.Scope)
 
 		// Verify JWT token is valid
 		token, err := jwt.Parse(response.AccessToken, func(token *jwt.Token) (interface{}, error) {
 			return []byte("test-secret"), nil
 		})
 		require.NoError(t, err)
-		assert.True(t, token.Valid)
+		require.True(t, token.Valid)
 
 		// Verify claims
 		claims, ok := token.Claims.(jwt.MapClaims)
 		require.True(t, ok)
-		assert.Equal(t, "api_key", claims["grant_type"])
-		assert.Equal(t, "sk_live_abc123def456", claims["api_key"])
-		assert.Contains(t, claims["scope"], "invoices:create")
-		assert.Contains(t, claims["scope"], "invoices:read")
+		require.Equal(t, "api_key", claims["grant_type"])
+		require.Equal(t, "sk_live_abc123def456", claims["api_key"])
+		require.Contains(t, claims["scope"], "invoices:create")
+		require.Contains(t, claims["scope"], "invoices:read")
 	})
 
 	t.Run("GenerateToken_InvalidGrantType", func(t *testing.T) {
@@ -96,14 +95,14 @@ func TestAuthTokenEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response ErrorResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "validation_error", response.Error)
-		assert.Contains(t, response.Message, "grant_type")
+		require.Equal(t, "validation_error", response.Error)
+		require.Contains(t, response.Message, "grant_type")
 	})
 
 	t.Run("GenerateToken_InvalidAPIKey", func(t *testing.T) {
@@ -126,14 +125,14 @@ func TestAuthTokenEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 
 		var response ErrorResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "authentication_error", response.Error)
-		assert.Contains(t, response.Message, "Invalid API key")
+		require.Equal(t, "authentication_error", response.Error)
+		require.Contains(t, response.Message, "Invalid API key")
 	})
 
 	t.Run("GenerateToken_EmptyScope", func(t *testing.T) {
@@ -156,15 +155,15 @@ func TestAuthTokenEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response ErrorResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "validation_error", response.Error)
+		require.Equal(t, "validation_error", response.Error)
 		// The binding validation happens first, so we get "Invalid JSON format" instead of specific scope error
-		assert.Contains(t, response.Message, "Invalid JSON format")
+		require.Contains(t, response.Message, "Invalid JSON format")
 	})
 
 	t.Run("GenerateToken_InvalidExpiresIn", func(t *testing.T) {
@@ -187,15 +186,15 @@ func TestAuthTokenEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response ErrorResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "validation_error", response.Error)
+		require.Equal(t, "validation_error", response.Error)
 		// The binding validation happens first, so we get "Invalid JSON format" instead of specific expires_in error
-		assert.Contains(t, response.Message, "Invalid JSON format")
+		require.Contains(t, response.Message, "Invalid JSON format")
 	})
 
 	t.Run("GenerateToken_InvalidJSON", func(t *testing.T) {
@@ -210,14 +209,14 @@ func TestAuthTokenEndpoint(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response ErrorResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "validation_error", response.Error)
-		assert.Contains(t, response.Message, "Invalid JSON")
+		require.Equal(t, "validation_error", response.Error)
+		require.Contains(t, response.Message, "Invalid JSON")
 	})
 }
 
@@ -244,12 +243,12 @@ func TestJWTValidation(t *testing.T) {
 
 		// Then
 		require.NoError(t, err)
-		assert.True(t, parsedToken.Valid)
+		require.True(t, parsedToken.Valid)
 
 		parsedClaims, ok := parsedToken.Claims.(jwt.MapClaims)
 		require.True(t, ok)
-		assert.Equal(t, "api_key", parsedClaims["grant_type"])
-		assert.Equal(t, "sk_live_abc123def456", parsedClaims["api_key"])
+		require.Equal(t, "api_key", parsedClaims["grant_type"])
+		require.Equal(t, "sk_live_abc123def456", parsedClaims["api_key"])
 	})
 
 	t.Run("ValidateJWT_Expired", func(t *testing.T) {
@@ -273,8 +272,8 @@ func TestJWTValidation(t *testing.T) {
 		})
 
 		// Then
-		assert.Error(t, err)
-		assert.False(t, parsedToken.Valid)
-		assert.Contains(t, err.Error(), "token is expired")
+		require.Error(t, err)
+		require.False(t, parsedToken.Valid)
+		require.Contains(t, err.Error(), "token is expired")
 	})
 }

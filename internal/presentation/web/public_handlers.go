@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/shared"
 )
 
 // GetPublicInvoiceData handles GET /api/v1/public/invoice/:id requests.
@@ -36,8 +37,8 @@ func (h *Handler) GetPublicInvoiceData(c *gin.Context) {
 	inv, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice for public view", zap.Error(err), zap.String("invoice_id", id))
-		if errors.Is(err, invoice.ErrInvoiceNotFound) {
-			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+		if errors.Is(err, shared.ErrNotFound) {
+			c.JSON(http.StatusNotFound, createNotFoundErrorResponse("invoice not found"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("failed to retrieve invoice", err))
@@ -73,8 +74,8 @@ func (h *Handler) GetPublicInvoiceStatus(c *gin.Context) {
 	status, err := h.invoiceService.GetInvoiceStatus(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice status", zap.Error(err), zap.String("invoice_id", id))
-		if errors.Is(err, invoice.ErrInvoiceNotFound) {
-			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+		if errors.Is(err, shared.ErrNotFound) {
+			c.JSON(http.StatusNotFound, createNotFoundErrorResponse("invoice not found"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("failed to retrieve invoice status", err))
@@ -114,8 +115,8 @@ func (h *Handler) GetPublicInvoiceEvents(c *gin.Context) {
 	_, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice for events", zap.Error(err), zap.String("invoice_id", id))
-		if errors.Is(err, invoice.ErrInvoiceNotFound) {
-			c.JSON(http.StatusNotFound, createValidationErrorResponse("invoice not found", nil))
+		if errors.Is(err, shared.ErrNotFound) {
+			c.JSON(http.StatusNotFound, createNotFoundErrorResponse("invoice not found"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, createValidationErrorResponse("failed to retrieve invoice", err))

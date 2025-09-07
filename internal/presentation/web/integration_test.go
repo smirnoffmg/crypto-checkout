@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"crypto-checkout/internal/presentation/web"
@@ -50,9 +49,6 @@ func TestInvoiceIntegration(t *testing.T) {
 		createW := httptest.NewRecorder()
 		router.ServeHTTP(createW, createHTTPReq)
 
-		if createW.Code != http.StatusCreated {
-			t.Logf("Create invoice response code: %d, body: %s", createW.Code, createW.Body.String())
-		}
 		require.Equal(t, http.StatusCreated, createW.Code)
 
 		var createResponse web.CreateInvoiceResponse
@@ -61,7 +57,7 @@ func TestInvoiceIntegration(t *testing.T) {
 
 		invoiceID := createResponse.ID
 		require.NotEmpty(t, invoiceID)
-		assert.Equal(t, "created", createResponse.Status)
+		require.Equal(t, "created", createResponse.Status)
 
 		// Step 2: Get the invoice to verify it was created
 		getReq := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+invoiceID, nil)
@@ -76,8 +72,8 @@ func TestInvoiceIntegration(t *testing.T) {
 		err = json.Unmarshal(getW.Body.Bytes(), &getResponse)
 		require.NoError(t, err)
 
-		assert.Equal(t, invoiceID, getResponse.ID)
-		assert.Equal(t, "created", getResponse.Status)
+		require.Equal(t, invoiceID, getResponse.ID)
+		require.Equal(t, "created", getResponse.Status)
 
 		// Step 3: Cancel the invoice
 		cancelReq := web.CancelInvoiceRequest{
@@ -100,10 +96,10 @@ func TestInvoiceIntegration(t *testing.T) {
 		err = json.Unmarshal(cancelW.Body.Bytes(), &cancelResponse)
 		require.NoError(t, err)
 
-		assert.Equal(t, invoiceID, cancelResponse.ID)
-		assert.Equal(t, "cancelled", cancelResponse.Status)
-		assert.Equal(t, cancelReq.Reason, cancelResponse.Reason)
-		assert.NotEmpty(t, cancelResponse.CancelledAt)
+		require.Equal(t, invoiceID, cancelResponse.ID)
+		require.Equal(t, "cancelled", cancelResponse.Status)
+		require.Equal(t, cancelReq.Reason, cancelResponse.Reason)
+		require.NotEmpty(t, cancelResponse.CancelledAt)
 
 		// Step 4: Verify the invoice is cancelled by getting it again
 		getReq2 := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+invoiceID, nil)
@@ -118,8 +114,8 @@ func TestInvoiceIntegration(t *testing.T) {
 		err = json.Unmarshal(getW2.Body.Bytes(), &getResponse2)
 		require.NoError(t, err)
 
-		assert.Equal(t, invoiceID, getResponse2.ID)
-		assert.Equal(t, "cancelled", getResponse2.Status)
+		require.Equal(t, invoiceID, getResponse2.ID)
+		require.Equal(t, "cancelled", getResponse2.Status)
 	})
 
 	t.Run("CancelNonExistentInvoice", func(t *testing.T) {
@@ -141,13 +137,13 @@ func TestInvoiceIntegration(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Then
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		require.Equal(t, http.StatusNotFound, w.Code)
 
 		var response web.ErrorResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "not_found", response.Error)
-		assert.Contains(t, response.Message, "invoice not found")
+		require.Equal(t, "not_found", response.Error)
+		require.Contains(t, response.Message, "invoice not found")
 	})
 }

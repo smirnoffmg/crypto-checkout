@@ -8,7 +8,6 @@ import (
 	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/internal/infrastructure/database"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,43 +47,43 @@ func TestInvoiceMapper(t *testing.T) {
 			require.NotNil(t, domain)
 
 			// Verify basic fields
-			assert.Equal(t, "test-invoice-id", domain.ID())
-			assert.Equal(t, "test-merchant-id", domain.MerchantID())
-			assert.Equal(t, "test-customer-id", *domain.CustomerID())
-			assert.Equal(t, "Test Invoice", domain.Title())
-			assert.Equal(t, "Test Description", domain.Description())
-			assert.Equal(t, "created", domain.Status().String())
+			require.Equal(t, "test-invoice-id", domain.ID())
+			require.Equal(t, "test-merchant-id", domain.MerchantID())
+			require.Equal(t, "test-customer-id", *domain.CustomerID())
+			require.Equal(t, "Test Invoice", domain.Title())
+			require.Equal(t, "Test Description", domain.Description())
+			require.Equal(t, "created", domain.Status().String())
 
 			// Verify items
 			items := domain.Items()
 			require.Len(t, items, 1)
-			assert.Equal(t, "Test Item", items[0].Name())
-			assert.Equal(t, "Test Description", items[0].Description())
-			assert.Equal(t, "2", items[0].Quantity().String())
-			assert.Equal(t, "10", items[0].UnitPrice().Amount().String())
+			require.Equal(t, "Test Item", items[0].Name())
+			require.Equal(t, "Test Description", items[0].Description())
+			require.Equal(t, "2", items[0].Quantity().String())
+			require.Equal(t, "10", items[0].UnitPrice().Amount().String())
 
 			// Verify pricing
 			pricing := domain.Pricing()
-			assert.Equal(t, "20", pricing.Subtotal().Amount().String())
-			assert.Equal(t, "2", pricing.Tax().Amount().String())
-			assert.Equal(t, "22", pricing.Total().Amount().String())
+			require.Equal(t, "20", pricing.Subtotal().Amount().String())
+			require.Equal(t, "2", pricing.Tax().Amount().String())
+			require.Equal(t, "22", pricing.Total().Amount().String())
 
 			// Verify payment address
 			paymentAddress := domain.PaymentAddress()
 			require.NotNil(t, paymentAddress)
-			assert.Equal(t, "TTestAddress123456789012345678901234567890", paymentAddress.String())
+			require.Equal(t, "TTestAddress123456789012345678901234567890", paymentAddress.String())
 
 			// Verify expiration
 			expiration := domain.Expiration()
 			require.NotNil(t, expiration)
-			assert.False(t, expiration.IsExpired())
+			require.False(t, expiration.IsExpired())
 		})
 
 		t.Run("Nil_Model", func(t *testing.T) {
 			domain, err := mapper.ToDomain(nil)
-			assert.Error(t, err)
-			assert.Nil(t, domain)
-			assert.Contains(t, err.Error(), "invoice model cannot be nil")
+			require.Error(t, err)
+			require.Nil(t, domain)
+			require.Contains(t, err.Error(), "invoice model cannot be nil")
 		})
 
 		t.Run("Empty_Items", func(t *testing.T) {
@@ -105,9 +104,9 @@ func TestInvoiceMapper(t *testing.T) {
 			}
 
 			domain, err := mapper.ToDomain(model)
-			assert.Error(t, err)
-			assert.Nil(t, domain)
-			assert.Contains(t, err.Error(), "invoice must have at least one item")
+			require.Error(t, err)
+			require.Nil(t, domain)
+			require.Contains(t, err.Error(), "invoice must have at least one item")
 		})
 
 		t.Run("Invalid_Items_JSON", func(t *testing.T) {
@@ -128,9 +127,9 @@ func TestInvoiceMapper(t *testing.T) {
 			}
 
 			domain, err := mapper.ToDomain(model)
-			assert.Error(t, err)
-			assert.Nil(t, domain)
-			assert.Contains(t, err.Error(), "failed to parse items JSON")
+			require.Error(t, err)
+			require.Nil(t, domain)
+			require.Contains(t, err.Error(), "failed to parse items JSON")
 		})
 	})
 
@@ -173,38 +172,38 @@ func TestInvoiceMapper(t *testing.T) {
 			require.NotNil(t, model)
 
 			// Verify basic fields
-			assert.Equal(t, "test-invoice-id", model.ID)
-			assert.Equal(t, "test-merchant-id", model.MerchantID)
-			assert.Equal(t, "test-customer-id", *model.CustomerID)
-			assert.Equal(t, "Test Invoice", model.Title)
-			assert.Equal(t, "Test Description", model.Description)
-			assert.Equal(t, "USD", model.Currency)
-			assert.Equal(t, "USDT", model.CryptoCurrency)
-			assert.Equal(t, "created", model.Status)
+			require.Equal(t, "test-invoice-id", model.ID)
+			require.Equal(t, "test-merchant-id", model.MerchantID)
+			require.Equal(t, "test-customer-id", *model.CustomerID)
+			require.Equal(t, "Test Invoice", model.Title)
+			require.Equal(t, "Test Description", model.Description)
+			require.Equal(t, "USD", model.Currency)
+			require.Equal(t, "USDT", model.CryptoCurrency)
+			require.Equal(t, "created", model.Status)
 
 			// Verify pricing
-			assert.Equal(t, "20", model.Subtotal)
-			assert.Equal(t, "2", model.Tax)
-			assert.Equal(t, "22", model.Total)
+			require.Equal(t, "20", model.Subtotal)
+			require.Equal(t, "2", model.Tax)
+			require.Equal(t, "22", model.Total)
 
 			// Verify items JSON
-			assert.Contains(t, model.Items, "Test Item")
-			assert.Contains(t, model.Items, "Test Description")
-			assert.Contains(t, model.Items, "2")
-			assert.Contains(t, model.Items, "10")
+			require.Contains(t, model.Items, "Test Item")
+			require.Contains(t, model.Items, "Test Description")
+			require.Contains(t, model.Items, "2")
+			require.Contains(t, model.Items, "10")
 
 			// Verify payment address
 			require.NotNil(t, model.PaymentAddress)
-			assert.Equal(t, "TTestAddress123456789012345678901234567890", *model.PaymentAddress)
+			require.Equal(t, "TTestAddress123456789012345678901234567890", *model.PaymentAddress)
 
 			// Verify expiration
 			require.NotNil(t, model.ExpiresAt)
-			assert.True(t, model.ExpiresAt.After(time.Now()))
+			require.True(t, model.ExpiresAt.After(time.Now()))
 		})
 
 		t.Run("Nil_Domain", func(t *testing.T) {
 			model := mapper.ToModel(nil)
-			assert.Nil(t, model)
+			require.Nil(t, model)
 		})
 
 		t.Run("Empty_Items", func(t *testing.T) {
@@ -233,9 +232,9 @@ func TestInvoiceMapper(t *testing.T) {
 				expiration,
 				nil,
 			)
-			assert.Error(t, err)
-			assert.Nil(t, domain)
-			assert.Contains(t, err.Error(), "invoice must have at least one item")
+			require.Error(t, err)
+			require.Nil(t, domain)
+			require.Contains(t, err.Error(), "invoice must have at least one item")
 		})
 	})
 
@@ -282,16 +281,16 @@ func TestInvoiceMapper(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, domains, 2)
 
-			assert.Equal(t, "invoice-1", domains[0].ID())
-			assert.Equal(t, "Invoice 1", domains[0].Title())
-			assert.Equal(t, "invoice-2", domains[1].ID())
-			assert.Equal(t, "Invoice 2", domains[1].Title())
+			require.Equal(t, "invoice-1", domains[0].ID())
+			require.Equal(t, "Invoice 1", domains[0].Title())
+			require.Equal(t, "invoice-2", domains[1].ID())
+			require.Equal(t, "Invoice 2", domains[1].Title())
 		})
 
 		t.Run("Empty_Slice", func(t *testing.T) {
 			domains, err := mapper.ToDomainSlice([]database.InvoiceModel{})
 			require.NoError(t, err)
-			assert.Len(t, domains, 0)
+			require.Len(t, domains, 0)
 		})
 
 		t.Run("Invalid_Model", func(t *testing.T) {
@@ -314,9 +313,9 @@ func TestInvoiceMapper(t *testing.T) {
 			}
 
 			domains, err := mapper.ToDomainSlice(models)
-			assert.Error(t, err)
-			assert.Nil(t, domains)
-			assert.Contains(t, err.Error(), "failed to convert model 0")
+			require.Error(t, err)
+			require.Nil(t, domains)
+			require.Contains(t, err.Error(), "failed to convert model 0")
 		})
 	})
 }

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"crypto-checkout/test/testutil"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestMerchantAPICreateInvoice tests the merchant API invoice creation endpoint.
@@ -52,8 +52,8 @@ func TestMerchantAPICreateInvoice(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
 
 	var response map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
@@ -62,35 +62,35 @@ func TestMerchantAPICreateInvoice(t *testing.T) {
 	}
 
 	// Verify response structure matches API.md specification
-	assert.Contains(t, response, "id")
-	assert.Contains(t, response, "items")
-	assert.Contains(t, response, "subtotal")
-	assert.Contains(t, response, "tax_amount")
-	assert.Contains(t, response, "total")
-	assert.Contains(t, response, "tax_rate")
-	assert.Contains(t, response, "status")
-	assert.Contains(t, response, "created_at")
+	require.Contains(t, response, "id")
+	require.Contains(t, response, "items")
+	require.Contains(t, response, "subtotal")
+	require.Contains(t, response, "tax_amount")
+	require.Contains(t, response, "total")
+	require.Contains(t, response, "tax_rate")
+	require.Contains(t, response, "status")
+	require.Contains(t, response, "created_at")
 
 	// API.md required fields - these should be implemented
-	assert.Contains(t, response, "usdt_amount", "API.md requires usdt_amount field")
-	assert.Contains(t, response, "address", "API.md requires address field")
-	assert.Contains(t, response, "customer_url", "API.md requires customer_url field")
-	assert.Contains(t, response, "expires_at", "API.md requires expires_at field")
+	require.Contains(t, response, "usdt_amount", "API.md requires usdt_amount field")
+	require.Contains(t, response, "address", "API.md requires address field")
+	require.Contains(t, response, "customer_url", "API.md requires customer_url field")
+	require.Contains(t, response, "expires_at", "API.md requires expires_at field")
 
 	// Verify invoice status is pending
-	assert.Equal(t, "created", response["status"])
+	require.Equal(t, "created", response["status"])
 
 	// Verify items structure
 	items, ok := response["items"].([]interface{})
-	assert.True(t, ok)
-	assert.Len(t, items, 2)
+	require.True(t, ok)
+	require.Len(t, items, 2)
 
 	// Verify first item
 	item1 := items[0].(map[string]interface{})
-	assert.Equal(t, "VPN Premium Plan", item1["description"])
-	assert.Equal(t, "9.99", item1["unit_price"])
-	assert.Equal(t, "1", item1["quantity"])
-	assert.Contains(t, item1, "total")
+	require.Equal(t, "VPN Premium Plan", item1["description"])
+	require.Equal(t, "9.99", item1["unit_price"])
+	require.Equal(t, "1", item1["quantity"])
+	require.Contains(t, item1, "total")
 }
 
 // TestMerchantAPICreateInvoiceValidation tests validation errors.
@@ -177,7 +177,7 @@ func TestMerchantAPICreateInvoiceValidation(t *testing.T) {
 			}
 			defer resp.Body.Close()
 
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+			require.Equal(t, tt.expectedStatus, resp.StatusCode)
 		})
 	}
 }
@@ -237,8 +237,8 @@ func TestMerchantAPIGetInvoice(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
 
 	var response map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
@@ -247,23 +247,23 @@ func TestMerchantAPIGetInvoice(t *testing.T) {
 	}
 
 	// Verify response structure matches API.md merchant response
-	assert.Equal(t, invoiceID, response["id"])
-	assert.Contains(t, response, "items")
-	assert.Contains(t, response, "subtotal")
-	assert.Contains(t, response, "tax_amount")
-	assert.Contains(t, response, "total")
-	assert.Contains(t, response, "tax_rate")
-	assert.Contains(t, response, "status")
-	assert.Contains(t, response, "created_at")
+	require.Equal(t, invoiceID, response["id"])
+	require.Contains(t, response, "items")
+	require.Contains(t, response, "subtotal")
+	require.Contains(t, response, "tax_amount")
+	require.Contains(t, response, "total")
+	require.Contains(t, response, "tax_rate")
+	require.Contains(t, response, "status")
+	require.Contains(t, response, "created_at")
 
 	// API.md required fields - these should be implemented
-	assert.Contains(t, response, "usdt_amount", "API.md requires usdt_amount field")
-	assert.Contains(t, response, "address", "API.md requires address field")
-	assert.Contains(t, response, "customer_url", "API.md requires customer_url field")
-	assert.Contains(t, response, "expires_at", "API.md requires expires_at field")
+	require.Contains(t, response, "usdt_amount", "API.md requires usdt_amount field")
+	require.Contains(t, response, "address", "API.md requires address field")
+	require.Contains(t, response, "customer_url", "API.md requires customer_url field")
+	require.Contains(t, response, "expires_at", "API.md requires expires_at field")
 
 	// Verify status is pending
-	assert.Equal(t, "created", response["status"])
+	require.Equal(t, "created", response["status"])
 }
 
 // TestMerchantAPIGetInvoiceNotFound tests 404 for non-existent invoice.
@@ -283,7 +283,7 @@ func TestMerchantAPIGetInvoiceNotFound(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 // TestMerchantAPIAuthentication tests that merchant endpoints require authentication.
@@ -322,7 +322,7 @@ func TestMerchantAPIAuthentication(t *testing.T) {
 	defer resp.Body.Close()
 
 	// API.md requires authentication for merchant endpoints
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Merchant endpoints should require authentication")
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Merchant endpoints should require authentication")
 
 	// Verify error response structure matches API.md
 	var errorResponse map[string]interface{}
@@ -330,11 +330,11 @@ func TestMerchantAPIAuthentication(t *testing.T) {
 	if err := json.Unmarshal(body, &errorResponse); err == nil {
 		// API.md error structure should have error.type, error.code, error.message
 		if errorObj, ok := errorResponse["error"].(map[string]interface{}); ok {
-			assert.Contains(t, errorObj, "type", "API.md error should have error.type")
-			assert.Contains(t, errorObj, "code", "API.md error should have error.code")
-			assert.Contains(t, errorObj, "message", "API.md error should have error.message")
+			require.Contains(t, errorObj, "type", "API.md error should have error.type")
+			require.Contains(t, errorObj, "code", "API.md error should have error.code")
+			require.Contains(t, errorObj, "message", "API.md error should have error.message")
 		}
-		assert.Contains(t, errorResponse, "request_id", "API.md error should have request_id")
+		require.Contains(t, errorResponse, "request_id", "API.md error should have request_id")
 	}
 }
 
@@ -393,14 +393,14 @@ func TestMerchantAPICancelInvoice(t *testing.T) {
 	defer cancelResp.Body.Close()
 
 	// Should return 501 Not Implemented as per current implementation
-	assert.Equal(t, http.StatusNotImplemented, cancelResp.StatusCode)
+	require.Equal(t, http.StatusNotImplemented, cancelResp.StatusCode)
 
 	// Verify error response
 	var errorResponse map[string]interface{}
 	body, _ := io.ReadAll(cancelResp.Body)
 	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		assert.Contains(t, errorResponse, "error")
-		assert.Contains(t, errorResponse, "message")
+		require.Contains(t, errorResponse, "error")
+		require.Contains(t, errorResponse, "message")
 	}
 }
 
@@ -422,14 +422,14 @@ func TestMerchantAPIListInvoices(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Should return 501 Not Implemented as per current implementation
-	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
 
 	// Verify error response
 	var errorResponse map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
 	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		assert.Contains(t, errorResponse, "error")
-		assert.Contains(t, errorResponse, "message")
+		require.Contains(t, errorResponse, "error")
+		require.Contains(t, errorResponse, "message")
 	}
 }
 
@@ -451,13 +451,13 @@ func TestMerchantAPIGetAnalytics(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Should return 501 Not Implemented as per current implementation
-	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
 
 	// Verify error response
 	var errorResponse map[string]interface{}
 	body, _ := io.ReadAll(resp.Body)
 	if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
-		assert.Contains(t, errorResponse, "error")
-		assert.Contains(t, errorResponse, "message")
+		require.Contains(t, errorResponse, "error")
+		require.Contains(t, errorResponse, "message")
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"crypto-checkout/pkg/config"
@@ -78,9 +77,9 @@ func TestConfig(t *testing.T) {
 			cfg, err := loadConfigForTest(tt.envVars)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expected.Server.Port, cfg.Server.Port)
-			assert.Equal(t, tt.expected.Server.Host, cfg.Server.Host)
-			assert.Equal(t, tt.expected.Log.Level, cfg.Log.Level)
+			require.Equal(t, tt.expected.Server.Port, cfg.Server.Port)
+			require.Equal(t, tt.expected.Server.Host, cfg.Server.Host)
+			require.Equal(t, tt.expected.Log.Level, cfg.Log.Level)
 		})
 	}
 }
@@ -117,7 +116,7 @@ func TestNewConfig(t *testing.T) {
 
 	cfg := config.NewConfig()
 	require.NotNil(t, cfg)
-	assert.Equal(t, 8080, cfg.Server.Port)
-	assert.Equal(t, "localhost", cfg.Server.Host)
-	assert.Equal(t, "info", cfg.Log.Level)
+	require.Equal(t, 8080, cfg.Server.Port)
+	require.Equal(t, "localhost", cfg.Server.Host)
+	require.Equal(t, "info", cfg.Log.Level)
 }
