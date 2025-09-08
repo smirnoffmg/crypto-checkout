@@ -1,6 +1,7 @@
 package invoice
 
 import (
+	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/domain/shared"
 	"time"
 )
@@ -217,7 +218,7 @@ func getCryptoAmountString(invoice *Invoice) string {
 }
 
 // GetPaymentProgress returns the payment progress for an invoice.
-func GetPaymentProgress(invoice *Invoice, payments []*Payment) *PaymentProgress {
+func GetPaymentProgress(invoice *Invoice, payments []*payment.Payment) *PaymentProgress {
 	if invoice == nil {
 		return nil
 	}
@@ -240,7 +241,7 @@ func GetPaymentProgress(invoice *Invoice, payments []*Payment) *PaymentProgress 
 		total, _ := shared.NewMoneyWithCrypto("0.00", invoice.CryptoCurrency())
 		for _, payment := range payments {
 			if payment.IsConfirmed() {
-				total, _ = total.Add(payment.Amount())
+				total, _ = total.Add(payment.Amount().Amount())
 			}
 		}
 		totalReceived = total.String()

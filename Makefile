@@ -1,4 +1,4 @@
-.PHONY: help build test lint clean run up down logs ps
+.PHONY: help build test lint clean run up down logs ps test-e2e-kafka
 
 # Default target
 help:
@@ -9,10 +9,11 @@ help:
 	@echo "  clean       - Clean build artifacts"
 	@echo "  run         - Run the application"
 	@echo "  dev         - Run with hot reload"
-	@echo "  up     - Start all services with Docker Compose"
-	@echo "  down   - Stop all Docker Compose services"
-	@echo "  logs   - Show logs for all services"
-	@echo "  ps     - Show running containers"
+	@echo "  up          - Start all services with Docker Compose"
+	@echo "  down        - Stop all Docker Compose services"
+	@echo "  logs        - Show logs for all services"
+	@echo "  ps          - Show running containers"
+	@echo "  test-e2e-kafka - Run Kafka integration E2E test"
 
 # Build the application
 build:
@@ -58,3 +59,8 @@ logs:
 ps:
 	@echo "Showing running containers..."
 	docker compose --env-file env.dev ps
+
+# E2E tests
+test-e2e-kafka:
+	@echo "Running Kafka Integration E2E Test..."
+	./test/e2e/kafka_integration_test.sh

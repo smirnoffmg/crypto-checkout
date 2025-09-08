@@ -5,8 +5,24 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    env_file:
-      - env.dev
+    environment:
+      - CRYPTO_CHECKOUT_ENV=${CRYPTO_CHECKOUT_ENV:-development}
+      - CRYPTO_CHECKOUT_LOG_LEVEL=${CRYPTO_CHECKOUT_LOG_LEVEL:-debug}
+      - CRYPTO_CHECKOUT_SERVER_HOST=${CRYPTO_CHECKOUT_SERVER_HOST:-0.0.0.0}
+      - CRYPTO_CHECKOUT_SERVER_PORT=${CRYPTO_CHECKOUT_SERVER_PORT:-8080}
+      - CRYPTO_CHECKOUT_DATABASE_HOST=${CRYPTO_CHECKOUT_DATABASE_HOST:-postgres}
+      - CRYPTO_CHECKOUT_DATABASE_PORT=${CRYPTO_CHECKOUT_DATABASE_PORT:-5432}
+      - CRYPTO_CHECKOUT_DATABASE_DBNAME=${CRYPTO_CHECKOUT_DATABASE_DBNAME:-crypto_checkout}
+      - CRYPTO_CHECKOUT_DATABASE_USER=${CRYPTO_CHECKOUT_DATABASE_USER:-crypto_user}
+      - CRYPTO_CHECKOUT_DATABASE_PASSWORD=${CRYPTO_CHECKOUT_DATABASE_PASSWORD:-crypto_password}
+      - CRYPTO_CHECKOUT_DATABASE_SSLMODE=${CRYPTO_CHECKOUT_DATABASE_SSLMODE:-disable}
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:29092}
+      - KAFKA_TOPIC_DOMAIN_EVENTS=${KAFKA_TOPIC_DOMAIN_EVENTS:-crypto-checkout.domain-events}
+      - KAFKA_TOPIC_INTEGRATIONS=${KAFKA_TOPIC_INTEGRATIONS:-crypto-checkout.integrations}
+      - KAFKA_TOPIC_NOTIFICATIONS=${KAFKA_TOPIC_NOTIFICATIONS:-crypto-checkout.notifications}
+      - KAFKA_TOPIC_ANALYTICS=${KAFKA_TOPIC_ANALYTICS:-crypto-checkout.analytics}
+      - APP_NAME=${APP_NAME:-crypto-checkout}
+      - APP_VERSION=${APP_VERSION:-dev}
     networks:
       - crypto-checkout-network
     restart: unless-stopped
@@ -18,6 +34,8 @@ services:
       start_period: 10s
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
 
   redis:
@@ -41,9 +59,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-crypto_checkout}
-      - POSTGRES_USER=${POSTGRES_USER:-crypto_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-crypto_password}
+      - POSTGRES_DB=${CRYPTO_CHECKOUT_DATABASE_DBNAME:-crypto_checkout}
+      - POSTGRES_USER=${CRYPTO_CHECKOUT_DATABASE_USER:-crypto_user}
+      - POSTGRES_PASSWORD=${CRYPTO_CHECKOUT_DATABASE_PASSWORD:-crypto_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d
@@ -51,7 +69,55 @@ services:
       - crypto-checkout-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${CRYPTO_CHECKOUT_DATABASE_USER:-crypto_user} -d ${CRYPTO_CHECKOUT_DATABASE_DBNAME:-crypto_checkout} -h localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=${ZOOKEEPER_CLIENT_PORT:-2181}
+      - ZOOKEEPER_TICK_TIME=${ZOOKEEPER_TICK_TIME:-2000}
+    networks:
+      - crypto-checkout-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      - KAFKA_BROKER_ID=${KAFKA_BROKER_ID:-1}
+      - KAFKA_ZOOKEEPER_CONNECT=${KAFKA_ZOOKEEPER_CONNECT:-zookeeper:2181}
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP:-PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT}
+      - KAFKA_ADVERTISED_LISTENERS=${KAFKA_ADVERTISED_LISTENERS:-PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092}
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR:-1}
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR:-1}
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=${KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS:-0}
+      - KAFKA_JMX_PORT=${KAFKA_JMX_PORT:-9101}
+      - KAFKA_JMX_HOSTNAME=${KAFKA_JMX_HOSTNAME:-localhost}
+    networks:
+      - crypto-checkout-network
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -59,6 +125,7 @@ services:
 volumes:
   redis_data:
   postgres_data:
+  kafka_data:
 
 networks:
   crypto-checkout-network:

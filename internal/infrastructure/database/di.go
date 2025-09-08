@@ -9,17 +9,24 @@ import (
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // Module provides database-related dependencies for Fx.
 var Module = fx.Module("database",
 	fx.Provide(
 		NewDatabaseConnection,
+		NewGormDBProvider,
 		NewInvoiceRepositoryProvider,
 		NewPaymentRepositoryProvider,
 	),
 	fx.Invoke(InitializeDatabase),
 )
+
+// NewGormDBProvider provides a *gorm.DB from the database connection.
+func NewGormDBProvider(conn *Connection) *gorm.DB {
+	return conn.DB
+}
 
 // NewDatabaseConnection creates a new database connection.
 func NewDatabaseConnection(cfg *config.Config, logger *zap.Logger) (*Connection, error) {

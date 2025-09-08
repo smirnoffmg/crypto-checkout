@@ -27,6 +27,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Log      LogConfig      `mapstructure:"log"`
 	Database DatabaseConfig `mapstructure:"database"`
+	Kafka    KafkaConfig    `mapstructure:"kafka"`
 }
 
 // ServerConfig represents server configuration.
@@ -52,6 +53,15 @@ type DatabaseConfig struct {
 	URL      string `mapstructure:"url"`
 }
 
+// KafkaConfig represents Kafka configuration.
+type KafkaConfig struct {
+	Brokers            string `mapstructure:"brokers"`
+	TopicDomainEvents  string `mapstructure:"topic_domain_events"`
+	TopicIntegrations  string `mapstructure:"topic_integrations"`
+	TopicNotifications string `mapstructure:"topic_notifications"`
+	TopicAnalytics     string `mapstructure:"topic_analytics"`
+}
+
 // Load loads configuration using Viper with support for multiple sources.
 func Load() (*Config, error) {
 	v := viper.New()
@@ -67,6 +77,11 @@ func Load() (*Config, error) {
 	v.SetDefault("database.password", "crypto_password")
 	v.SetDefault("database.dbname", "crypto_checkout")
 	v.SetDefault("database.sslmode", "disable")
+	v.SetDefault("kafka.brokers", "localhost:9092")
+	v.SetDefault("kafka.topic_domain_events", "crypto-checkout.domain-events")
+	v.SetDefault("kafka.topic_integrations", "crypto-checkout.integrations")
+	v.SetDefault("kafka.topic_notifications", "crypto-checkout.notifications")
+	v.SetDefault("kafka.topic_analytics", "crypto-checkout.analytics")
 
 	// Set config file name and paths
 	v.SetConfigName("config")
@@ -115,6 +130,13 @@ func NewConfig() *Config {
 			Password: "crypto_password",
 			DBName:   "crypto_checkout",
 			SSLMode:  "disable",
+		},
+		Kafka: KafkaConfig{
+			Brokers:            "localhost:9092",
+			TopicDomainEvents:  "crypto-checkout.domain-events",
+			TopicIntegrations:  "crypto-checkout.integrations",
+			TopicNotifications: "crypto-checkout.notifications",
+			TopicAnalytics:     "crypto-checkout.analytics",
 		},
 	}
 }

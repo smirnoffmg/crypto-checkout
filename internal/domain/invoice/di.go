@@ -1,6 +1,7 @@
 package invoice
 
 import (
+	"crypto-checkout/internal/domain/shared"
 	"go.uber.org/fx"
 )
 

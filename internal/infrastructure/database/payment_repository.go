@@ -54,7 +54,7 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*payment.P
 		return nil, fmt.Errorf("failed to find payment: %w", err)
 	}
 
-	return r.modelToDomain(&model)
+	return r.modelToDomain(ctx, &model)
 }
 
 // FindByTransactionHash retrieves a payment by its transaction hash.
@@ -77,7 +77,7 @@ func (r *PaymentRepository) FindByTransactionHash(
 		return nil, fmt.Errorf("failed to find payment by transaction hash: %w", err)
 	}
 
-	return r.modelToDomain(&model)
+	return r.modelToDomain(ctx, &model)
 }
 
 // FindByAddress retrieves all payments for a given address.
@@ -97,7 +97,7 @@ func (r *PaymentRepository) FindByAddress(
 		return nil, fmt.Errorf("failed to find payments by address: %w", err)
 	}
 
-	return r.modelsToDomain(models)
+	return r.modelsToDomain(ctx, models)
 }
 
 // FindByStatus retrieves all payments with the given status.
@@ -113,7 +113,7 @@ func (r *PaymentRepository) FindByStatus(
 		return nil, fmt.Errorf("failed to find payments by status: %w", err)
 	}
 
-	return r.modelsToDomain(models)
+	return r.modelsToDomain(ctx, models)
 }
 
 // FindPending retrieves all pending payments (detected or confirming).
@@ -131,7 +131,7 @@ func (r *PaymentRepository) FindPending(ctx context.Context) ([]*payment.Payment
 		return nil, fmt.Errorf("failed to find pending payments: %w", err)
 	}
 
-	return r.modelsToDomain(models)
+	return r.modelsToDomain(ctx, models)
 }
 
 // FindConfirmed retrieves all confirmed payments.
@@ -144,7 +144,7 @@ func (r *PaymentRepository) FindConfirmed(ctx context.Context) ([]*payment.Payme
 		return nil, fmt.Errorf("failed to find confirmed payments: %w", err)
 	}
 
-	return r.modelsToDomain(models)
+	return r.modelsToDomain(ctx, models)
 }
 
 // FindFailed retrieves all failed payments.
@@ -157,7 +157,7 @@ func (r *PaymentRepository) FindFailed(ctx context.Context) ([]*payment.Payment,
 		return nil, fmt.Errorf("failed to find failed payments: %w", err)
 	}
 
-	return r.modelsToDomain(models)
+	return r.modelsToDomain(ctx, models)
 }
 
 // FindOrphaned retrieves all orphaned payments.
@@ -170,7 +170,7 @@ func (r *PaymentRepository) FindOrphaned(ctx context.Context) ([]*payment.Paymen
 		return nil, fmt.Errorf("failed to find orphaned payments: %w", err)
 	}
 
-	return r.modelsToDomain(models)
+	return r.modelsToDomain(ctx, models)
 }
 
 // Update updates an existing payment in the database.
@@ -297,7 +297,7 @@ func (r *PaymentRepository) domainToModel(p *payment.Payment) *PaymentModel {
 }
 
 // modelToDomain converts a database model to a domain payment.
-func (r *PaymentRepository) modelToDomain(model *PaymentModel) (*payment.Payment, error) {
+func (r *PaymentRepository) modelToDomain(ctx context.Context, model *PaymentModel) (*payment.Payment, error) {
 	// Create payment amount
 	amount, err := shared.NewMoneyWithCrypto(model.Amount, shared.CryptoCurrencyUSDT)
 	if err != nil {
@@ -338,7 +338,7 @@ func (r *PaymentRepository) modelToDomain(model *PaymentModel) (*payment.Payment
 	p.SetStatus(payment.PaymentStatus(model.Status))
 
 	// Update confirmations
-	if updateErr := p.UpdateConfirmations(context.Background(), model.Confirmations); updateErr != nil {
+	if updateErr := p.UpdateConfirmations(ctx, model.Confirmations); updateErr != nil {
 		return nil, fmt.Errorf("failed to update confirmations: %w", updateErr)
 	}
 
@@ -371,10 +371,10 @@ func (r *PaymentRepository) modelToDomain(model *PaymentModel) (*payment.Payment
 }
 
 // modelsToDomain converts multiple database models to domain payments.
-func (r *PaymentRepository) modelsToDomain(models []PaymentModel) ([]*payment.Payment, error) {
+func (r *PaymentRepository) modelsToDomain(ctx context.Context, models []PaymentModel) ([]*payment.Payment, error) {
 	payments := make([]*payment.Payment, len(models))
 	for i := range models {
-		p, err := r.modelToDomain(&models[i])
+		p, err := r.modelToDomain(ctx, &models[i])
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert model %d: %w", i, err)
 		}

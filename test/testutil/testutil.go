@@ -5,6 +5,7 @@ import (
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/infrastructure/database"
+	"crypto-checkout/internal/infrastructure/events"
 	"crypto-checkout/internal/presentation/web"
 	"crypto-checkout/pkg/config"
 	"net"
@@ -82,11 +83,19 @@ func SetupTestApp(t *testing.T) string {
 				Level: "debug",
 				Dir:   "logs",
 			},
+			Kafka: config.KafkaConfig{
+				Brokers:            "localhost:9092",
+				TopicDomainEvents:  "crypto-checkout.domain-events",
+				TopicIntegrations:  "crypto-checkout.integrations",
+				TopicNotifications: "crypto-checkout.notifications",
+				TopicAnalytics:     "crypto-checkout.analytics",
+			},
 		}),
 		// Supply test logger
 		fx.Supply(CreateTestLogger()),
 		// Provide all dependencies
 		database.Module,
+		events.TestModule,
 		invoice.Module,
 		payment.Module,
 		web.Module,

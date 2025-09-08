@@ -5,6 +5,7 @@ import (
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/infrastructure/database"
+	"crypto-checkout/internal/infrastructure/events"
 	"crypto-checkout/internal/presentation/web"
 	"crypto-checkout/pkg/config"
 
@@ -17,6 +18,7 @@ func GetApp() *fx.App {
 		fx.Provide(config.NewConfigProvider),
 		fx.Provide(NewLogger),
 		database.Module,
+		events.Module,
 		invoice.Module,
 		payment.Module,
 		web.Module,
