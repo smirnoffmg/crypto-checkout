@@ -4,6 +4,8 @@ import (
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/pkg/config"
 	"testing"
+
+	"go.uber.org/zap"
 )
 
 func TestConnection(t *testing.T) {
@@ -12,7 +14,7 @@ func TestConnection(t *testing.T) {
 			URL: "file::memory:",
 		}
 
-		conn, err := database.NewConnection(cfg)
+		conn, err := database.NewConnection(cfg, zap.NewNop())
 		if err != nil {
 			t.Fatalf("Failed to create connection: %v", err)
 		}
@@ -31,7 +33,7 @@ func TestConnection(t *testing.T) {
 			URL: "file::memory:",
 		}
 
-		conn, err := database.NewConnection(cfg)
+		conn, err := database.NewConnection(cfg, zap.NewNop())
 		if err != nil {
 			t.Fatalf("Failed to create connection: %v", err)
 		}

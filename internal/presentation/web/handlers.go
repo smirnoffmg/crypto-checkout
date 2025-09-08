@@ -2,6 +2,7 @@ package web
 
 import (
 	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/merchant"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/pkg/config"
@@ -30,6 +31,7 @@ const (
 type Handler struct {
 	invoiceService invoice.InvoiceService
 	paymentService payment.PaymentService
+	APIKeyService  merchant.APIKeyService
 	Logger         *zap.Logger
 	config         *config.Config
 	hub            *Hub
@@ -39,6 +41,7 @@ type Handler struct {
 func NewHandler(
 	invoiceService invoice.InvoiceService,
 	paymentService payment.PaymentService,
+	apiKeyService merchant.APIKeyService,
 	logger *zap.Logger,
 	cfg *config.Config,
 	hub *Hub,
@@ -46,6 +49,7 @@ func NewHandler(
 	return &Handler{
 		invoiceService: invoiceService,
 		paymentService: paymentService,
+		APIKeyService:  apiKeyService,
 		Logger:         logger,
 		config:         cfg,
 		hub:            hub,

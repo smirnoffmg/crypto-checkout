@@ -7,19 +7,21 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 // Connection represents a database connection.
 type Connection struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Logger *zap.Logger
 }
 
 // NewConnection creates a new database connection.
-func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
+func NewConnection(cfg config.DatabaseConfig, logger *zap.Logger) (*Connection, error) {
 	var db *gorm.DB
 	var err error
 
@@ -30,7 +32,7 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 			// SQLite connection
 			dbPath := strings.TrimPrefix(cfg.URL, "sqlite://")
 			db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-				Logger: logger.Default.LogMode(logger.Silent), // Silent for tests
+				Logger: gormlogger.Default.LogMode(gormlogger.Silent), // Silent for tests
 				NowFunc: func() time.Time {
 					return time.Now().UTC()
 				},
@@ -38,7 +40,7 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 		case strings.HasPrefix(cfg.URL, "file::memory:"):
 			// In-memory SQLite connection
 			db, err = gorm.Open(sqlite.Open(cfg.URL), &gorm.Config{
-				Logger: logger.Default.LogMode(logger.Silent), // Silent for tests
+				Logger: gormlogger.Default.LogMode(gormlogger.Silent), // Silent for tests
 				NowFunc: func() time.Time {
 					return time.Now().UTC()
 				},
@@ -46,7 +48,7 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 		default:
 			// Other database URLs (PostgreSQL, etc.)
 			db, err = gorm.Open(postgres.Open(cfg.URL), &gorm.Config{
-				Logger: logger.Default.LogMode(logger.Info),
+				Logger: gormlogger.Default.LogMode(gormlogger.Info),
 				NowFunc: func() time.Time {
 					return time.Now().UTC()
 				},
@@ -58,7 +60,7 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode)
 
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
+			Logger: gormlogger.Default.LogMode(gormlogger.Info),
 			NowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
@@ -103,17 +105,55 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 		sqlDB.SetConnMaxLifetime(time.Hour)
 	}
 
-	return &Connection{DB: db}, nil
+	return &Connection{DB: db, Logger: logger}, nil
 }
 
 // Migrate runs database migrations.
 func (c *Connection) Migrate() error {
+	c.Logger.Info("Starting database migration")
+
+	// Handle existing data before running AutoMigrate
+	if err := c.migrateExistingData(); err != nil {
+		c.Logger.Error("Failed to migrate existing data", zap.Error(err))
+		return fmt.Errorf("failed to migrate existing data: %w", err)
+	}
+
+	// Run GORM AutoMigrate
+	c.Logger.Info("Running GORM AutoMigrate")
 	if err := c.DB.AutoMigrate(
 		&InvoiceModel{},
 		&PaymentModel{},
 	); err != nil {
+		c.Logger.Error("Failed to run GORM AutoMigrate", zap.Error(err))
 		return fmt.Errorf("failed to run database migrations: %w", err)
 	}
+
+	c.Logger.Info("Database migration completed successfully")
+	return nil
+}
+
+// migrateExistingData handles migration of existing data before schema changes.
+func (c *Connection) migrateExistingData() error {
+	c.Logger.Info("Checking for existing data migration needs")
+
+	// Check if invoices table exists and has data
+	if c.DB.Migrator().HasTable(&InvoiceModel{}) {
+		var count int64
+		if err := c.DB.Raw("SELECT COUNT(*) FROM invoices").Scan(&count).Error; err != nil {
+			c.Logger.Error("Failed to count existing invoices", zap.Error(err))
+			return fmt.Errorf("failed to count existing invoices: %w", err)
+		}
+
+		if count > 0 {
+			c.Logger.Info("Found existing invoices", zap.Int64("count", count))
+			c.Logger.Warn("Migration may fail if existing data has NULL values for new NOT NULL columns")
+		} else {
+			c.Logger.Info("No existing invoices found")
+		}
+	} else {
+		c.Logger.Info("Invoices table does not exist yet")
+	}
+
 	return nil
 }
 

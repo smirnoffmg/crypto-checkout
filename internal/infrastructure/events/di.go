@@ -13,9 +13,15 @@ import (
 var Module = fx.Module("events",
 	fx.Provide(
 		NewKafkaConfig,
-		NewKafkaProducer,
+		fx.Annotate(
+			NewKafkaProducer,
+			fx.As(new(shared.EventPublisher)),
+		),
 		NewKafkaConsumer,
-		NewPostgreSQLEventStore,
+		fx.Annotate(
+			NewPostgreSQLEventStore,
+			fx.As(new(shared.EventStore)),
+		),
 		fx.Annotate(
 			NewEventBus,
 			fx.As(new(shared.EventBus)),
@@ -58,6 +64,11 @@ func NewKafkaConfig(cfg *config.Config, logger *zap.Logger) *KafkaConfig {
 }
 
 // MigrateEventStore runs database migrations for the event store.
-func MigrateEventStore(eventStore *PostgreSQLEventStore) error {
-	return eventStore.Migrate()
+func MigrateEventStore(eventStore shared.EventStore) error {
+	// Type assert to get the concrete type for migration
+	if pgEventStore, ok := eventStore.(*PostgreSQLEventStore); ok {
+		return pgEventStore.Migrate()
+	}
+	// For other implementations (like mocks), skip migration
+	return nil
 }

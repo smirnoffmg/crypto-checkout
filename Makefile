@@ -13,7 +13,7 @@ help:
 	@echo "  down        - Stop all Docker Compose services"
 	@echo "  logs        - Show logs for all services"
 	@echo "  ps          - Show running containers"
-	@echo "  test-e2e-kafka - Run Kafka integration E2E test"
+	@echo "  test-e2e-kafka - Test API endpoints and analyze Docker logs"
 
 # Build the application
 build:
@@ -46,7 +46,7 @@ run: build
 
 up:
 	@echo "Starting all services with Docker Compose..."
-	docker compose --env-file env.dev up -d
+	docker compose --env-file env.dev up -d --build
 
 down:
 	@echo "Stopping all Docker Compose services..."

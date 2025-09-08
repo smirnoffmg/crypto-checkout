@@ -17,6 +17,10 @@ type EventBus struct {
 
 // NewEventBus creates a new event bus that combines event store and publisher.
 func NewEventBus(store shared.EventStore, publisher shared.EventPublisher, logger *zap.Logger) *EventBus {
+	logger.Info("Creating EventBus",
+		zap.Bool("store_provided", store != nil),
+		zap.Bool("publisher_provided", publisher != nil))
+
 	return &EventBus{
 		store:     store,
 		publisher: publisher,

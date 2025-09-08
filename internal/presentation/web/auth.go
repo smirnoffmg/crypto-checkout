@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto-checkout/internal/domain/merchant"
 	"net/http"
 	"strings"
 	"time"
@@ -73,31 +74,6 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-// isValidAPIToken validates the API token format according to API.md.
-func isValidAPIToken(token string) bool {
-	// API.md specifies: sk_live_* or sk_test_*
-	return strings.HasPrefix(token, "sk_live_") || strings.HasPrefix(token, "sk_test_")
-}
-
-// maskToken masks the token for logging (shows first 8 chars + ...)
-func maskToken(token string) string {
-	if len(token) <= 8 {
-		return "***"
-	}
-	return token[:8] + "..."
-}
-
-// createAuthErrorResponse creates an authentication error response matching API.md format.
-func createAuthErrorResponse(errorType, code, message string) ErrorResponse {
-	return ErrorResponse{
-		Error:     errorType,
-		Code:      code,
-		Message:   message,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		RequestID: generateRequestID(),
-	}
-}
-
 // createNotFoundErrorResponse creates a not found error response matching API.md format.
 func createNotFoundErrorResponse(message string) ErrorResponse {
 	return ErrorResponse{
@@ -106,22 +82,6 @@ func createNotFoundErrorResponse(message string) ErrorResponse {
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		RequestID: generateRequestID(),
 	}
-}
-
-// generateRequestID generates a simple request ID for error responses.
-func generateRequestID() string {
-	// Simple implementation - in production, use proper UUID or correlation ID
-	return "req_auth_" + randomString(8)
-}
-
-// randomString generates a random string of specified length.
-func randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[i%len(charset)]
-	}
-	return string(b)
 }
 
 // JWTSecret is the secret key for JWT signing (in production, use environment variable)
@@ -147,39 +107,16 @@ func (h *Handler) generateAuthToken(c *gin.Context) {
 		return
 	}
 
-	// Validate grant type
-	if req.GrantType != "api_key" {
-		c.JSON(http.StatusBadRequest, createValidationErrorResponse("grant_type must be 'api_key'", nil))
+	// Validate request
+	if !h.validateTokenRequest(c, &req) {
 		return
 	}
 
-	// Validate API key format
-	if !isValidAPIToken(req.APIKey) {
-		h.Logger.Debug("Invalid API key format", zap.String("token", maskToken(req.APIKey)))
-		c.JSON(
-			http.StatusUnauthorized,
-			createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid API key format"),
-		)
+	// Validate API key and permissions
+	resp, ok := h.validateAPIKeyAndPermissions(c, &req)
+	if !ok {
 		return
 	}
-
-	// Validate scope
-	if len(req.Scope) == 0 {
-		c.JSON(http.StatusBadRequest, createValidationErrorResponse("scope is required and cannot be empty", nil))
-		return
-	}
-
-	// Validate expires_in
-	if req.ExpiresIn <= 0 || req.ExpiresIn > 86400 { // Max 24 hours
-		c.JSON(
-			http.StatusBadRequest,
-			createValidationErrorResponse("expires_in must be between 1 and 86400 seconds", nil),
-		)
-		return
-	}
-
-	// TODO: In production, validate API key against database and check permissions
-	// For now, we'll accept any valid format API key
 
 	// Generate JWT token
 	token, err := h.generateJWTToken(req.APIKey, req.Scope, req.ExpiresIn)
@@ -201,6 +138,14 @@ func (h *Handler) generateAuthToken(c *gin.Context) {
 		TokenType:   "Bearer",
 		ExpiresIn:   req.ExpiresIn,
 		Scope:       req.Scope,
+	}
+
+	if resp.APIKey != nil {
+		h.Logger.Debug("JWT token generated successfully",
+			zap.String("api_key_id", resp.APIKey.ID()),
+			zap.String("merchant_id", resp.APIKey.MerchantID()),
+			zap.Strings("scope", req.Scope),
+		)
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -236,4 +181,102 @@ func createValidationErrorResponse(message string, err error) ErrorResponse {
 	}
 
 	return response
+}
+
+// validateTokenRequest validates the token request parameters.
+func (h *Handler) validateTokenRequest(c *gin.Context, req *TokenRequest) bool {
+	// Validate grant type
+	if req.GrantType != "api_key" {
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("grant_type must be 'api_key'", nil))
+		return false
+	}
+
+	// Validate API key format
+	if !isValidAPIToken(req.APIKey) {
+		h.Logger.Debug("Invalid API key format", zap.String("token", maskToken(req.APIKey)))
+		c.JSON(
+			http.StatusUnauthorized,
+			createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid API key format"),
+		)
+		return false
+	}
+
+	// Validate scope
+	if len(req.Scope) == 0 {
+		c.JSON(http.StatusBadRequest, createValidationErrorResponse("scope is required and cannot be empty", nil))
+		return false
+	}
+
+	// Validate expires_in
+	if req.ExpiresIn <= 0 || req.ExpiresIn > 86400 { // Max 24 hours
+		c.JSON(
+			http.StatusBadRequest,
+			createValidationErrorResponse("expires_in must be between 1 and 86400 seconds", nil),
+		)
+		return false
+	}
+
+	return true
+}
+
+// validateAPIKeyAndPermissions validates the API key and checks permissions.
+func (h *Handler) validateAPIKeyAndPermissions(
+	c *gin.Context,
+	req *TokenRequest,
+) (*merchant.ValidateAPIKeyResponse, bool) {
+	ctx := c.Request.Context()
+	validateReq := &merchant.ValidateAPIKeyRequest{
+		RawKey: req.APIKey,
+	}
+
+	resp, err := h.APIKeyService.ValidateAPIKey(ctx, validateReq)
+	if err != nil {
+		h.Logger.Debug("API key validation failed", zap.String("token", maskToken(req.APIKey)), zap.Error(err))
+		c.JSON(
+			http.StatusUnauthorized,
+			createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid or expired API key"),
+		)
+		return nil, false
+	}
+
+	if !resp.Valid {
+		h.Logger.Debug("API key is invalid", zap.String("token", maskToken(req.APIKey)))
+		c.JSON(
+			http.StatusUnauthorized,
+			createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid or expired API key"),
+		)
+		return nil, false
+	}
+
+	// Check if API key has required permissions for the requested scope
+	if resp.APIKey != nil {
+		apiKeyPermissions := resp.APIKey.Permissions()
+		for _, requestedScope := range req.Scope {
+			hasPermission := false
+			for _, permission := range apiKeyPermissions {
+				if permission == requestedScope || permission == "*" {
+					hasPermission = true
+					break
+				}
+			}
+			if !hasPermission {
+				h.Logger.Debug("API key lacks required permission",
+					zap.String("api_key_id", resp.APIKey.ID()),
+					zap.String("requested_scope", requestedScope),
+					zap.Strings("available_permissions", apiKeyPermissions),
+				)
+				c.JSON(
+					http.StatusForbidden,
+					createAuthErrorResponse(
+						"authorization_error",
+						"INSUFFICIENT_PERMISSIONS",
+						"API key does not have required permission: "+requestedScope,
+					),
+				)
+				return nil, false
+			}
+		}
+	}
+
+	return resp, true
 }

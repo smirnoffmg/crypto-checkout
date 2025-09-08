@@ -60,3 +60,63 @@ type PaymentModel struct {
 func (PaymentModel) TableName() string {
 	return "payments"
 }
+
+// MerchantModel represents the database model for merchants.
+type MerchantModel struct {
+	ID           string         `gorm:"primaryKey;type:uuid"`
+	BusinessName string         `gorm:"type:varchar(255);not null"`
+	ContactEmail string         `gorm:"type:varchar(255);not null;uniqueIndex"`
+	Status       string         `gorm:"type:varchar(20);not null"`
+	Settings     string         `gorm:"type:jsonb;not null"`
+	CreatedAt    time.Time      `gorm:"not null"`
+	UpdatedAt    time.Time      `gorm:"not null"`
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
+}
+
+// TableName returns the table name for the MerchantModel.
+func (MerchantModel) TableName() string {
+	return "merchants"
+}
+
+// APIKeyModel represents the database model for API keys.
+type APIKeyModel struct {
+	ID          string `gorm:"primaryKey;type:uuid"`
+	MerchantID  string `gorm:"type:uuid;not null;index"`
+	KeyHash     string `gorm:"type:varchar(64);not null;uniqueIndex"`
+	KeyType     string `gorm:"type:varchar(10);not null"`
+	Permissions string `gorm:"type:jsonb;not null"`
+	Status      string `gorm:"type:varchar(20);not null"`
+	Name        string `gorm:"type:varchar(100)"`
+	LastUsedAt  *time.Time
+	ExpiresAt   *time.Time
+	CreatedAt   time.Time      `gorm:"not null"`
+	DeletedAt   gorm.DeletedAt `gorm:"index"`
+}
+
+// TableName returns the table name for the APIKeyModel.
+func (APIKeyModel) TableName() string {
+	return "api_keys"
+}
+
+// WebhookEndpointModel represents the database model for webhook endpoints.
+type WebhookEndpointModel struct {
+	ID           string         `gorm:"primaryKey;type:uuid"`
+	MerchantID   string         `gorm:"type:uuid;not null;index"`
+	URL          string         `gorm:"type:varchar(500);not null"`
+	Events       string         `gorm:"type:jsonb;not null"`
+	Secret       string         `gorm:"type:varchar(255);not null"`
+	Status       string         `gorm:"type:varchar(20);not null"`
+	MaxRetries   int            `gorm:"not null;default:5"`
+	RetryBackoff string         `gorm:"type:varchar(20);not null"`
+	Timeout      int            `gorm:"not null;default:30"`
+	AllowedIPs   string         `gorm:"type:jsonb"`
+	Headers      string         `gorm:"type:jsonb"`
+	CreatedAt    time.Time      `gorm:"not null"`
+	UpdatedAt    time.Time      `gorm:"not null"`
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
+}
+
+// TableName returns the table name for the WebhookEndpointModel.
+func (WebhookEndpointModel) TableName() string {
+	return "webhook_endpoints"
+}

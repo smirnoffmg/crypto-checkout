@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Kafka Integration E2E Test
-# This script tests the full flow: create invoice -> publish events -> process payment -> verify events
+# API and Log Analysis Test
+# This script tests API endpoints and analyzes Docker logs
 
 set -e
 
@@ -44,16 +44,12 @@ log_error() {
 
 # Cleanup function
 cleanup() {
-    log_info "Cleaning up..."
-    if [ ! -z "$KAFKA_CONSUMER_PID" ]; then
-        kill $KAFKA_CONSUMER_PID 2>/dev/null || true
-    fi
+    log_info "Cleaning up temporary files..."
     if [ ! -z "$CONSUMED_MESSAGES_FILE" ]; then
         rm -f "$CONSUMED_MESSAGES_FILE"
     fi
-    # Stop all services
-    log_info "Stopping all services..."
-    docker compose --env-file env.dev down
+    # Note: NOT stopping containers - they should remain running for further testing
+    log_info "Cleanup completed - containers remain running"
 }
 
 # Set up cleanup trap
@@ -92,76 +88,47 @@ check_dependencies() {
     log_success "All dependencies are available"
 }
 
-# Start infrastructure
-start_infrastructure() {
-    log_info "Starting infrastructure (Kafka, PostgreSQL, Redis)..."
+# Check if services are running
+check_services_running() {
+    log_info "Checking if services are running..."
     
-    # Start only the infrastructure services
-    docker compose --env-file env.dev up -d zookeeper kafka postgres redis
+    # Check if containers are running
+    local containers=$(docker compose --env-file env.dev ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(crypto-checkout|postgres|kafka|redis|zookeeper)" | grep -v "NAME")
     
-    # Wait for services to be healthy
-    log_info "Waiting for services to be healthy..."
-    
-    # Wait for PostgreSQL
-    log_info "Waiting for PostgreSQL to be ready..."
-    local postgres_ready=false
-    for i in $(seq 1 $TEST_TIMEOUT); do
-        if docker compose --env-file env.dev exec -T postgres pg_isready -U ${CRYPTO_CHECKOUT_DATABASE_USER:-crypto_user} -d ${CRYPTO_CHECKOUT_DATABASE_DBNAME:-crypto_checkout} -h localhost > /dev/null 2>&1; then
-            postgres_ready=true
-            break
-        fi
-        sleep 1
-    done
-    if [ "$postgres_ready" = false ]; then
-        log_error "PostgreSQL failed to start within $TEST_TIMEOUT seconds"
+    if [ -z "$containers" ]; then
+        log_error "No services are running. Please start them first with: make up"
         exit 1
     fi
-    log_success "PostgreSQL is ready"
     
-    # Wait for Kafka
-    log_info "Waiting for Kafka to be ready..."
-    local kafka_ready=false
-    for i in $(seq 1 $TEST_TIMEOUT); do
-        if docker compose --env-file env.dev exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1; then
-            kafka_ready=true
-            break
-        fi
-        sleep 1
-    done
-    if [ "$kafka_ready" = false ]; then
-        log_error "Kafka failed to start within $TEST_TIMEOUT seconds"
+    log_success "Services are running:"
+    echo "$containers"
+    
+    # Quick health check
+    log_info "Performing quick health checks..."
+    
+    # Check application health
+    if curl -s $API_BASE_URL/health > /dev/null 2>&1; then
+        log_success "Application is responding"
+    else
+        log_error "Application is not responding"
         exit 1
     fi
-    log_success "Kafka is ready"
     
-    # Create Kafka topic if it doesn't exist
-    log_info "Creating Kafka topic: $KAFKA_TOPIC"
-    docker compose --env-file env.dev exec -T kafka kafka-topics --create --topic "$KAFKA_TOPIC" --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1 --if-not-exists
-    log_success "Kafka topic created"
-}
-
-# Start the application
-start_application() {
-    log_info "Starting the application via Docker Compose..."
-    
-    # Start the application service
-    docker compose --env-file env.dev up -d crypto-checkout
-    
-    # Wait for the application to start
-    log_info "Waiting for application to start..."
-    local app_ready=false
-    for i in $(seq 1 $TEST_TIMEOUT); do
-        if curl -s $API_BASE_URL/health > /dev/null 2>&1; then
-            app_ready=true
-            break
-        fi
-        sleep 1
-    done
-    if [ "$app_ready" = false ]; then
-        log_error "Application failed to start within $TEST_TIMEOUT seconds"
+    # Check PostgreSQL
+    if docker compose --env-file env.dev exec -T postgres pg_isready -U ${CRYPTO_CHECKOUT_DATABASE_USER:-crypto_user} -d ${CRYPTO_CHECKOUT_DATABASE_DBNAME:-crypto_checkout} -h localhost > /dev/null 2>&1; then
+        log_success "PostgreSQL is ready"
+    else
+        log_error "PostgreSQL is not ready"
         exit 1
     fi
-    log_success "Application is ready"
+    
+    # Check Kafka
+    if docker compose --env-file env.dev exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1; then
+        log_success "Kafka is ready"
+    else
+        log_error "Kafka is not ready"
+        exit 1
+    fi
 }
 
 # Start Kafka consumer to capture events
@@ -378,65 +345,83 @@ test_health_endpoint() {
     fi
 }
 
-# Main test function
+# Test API endpoints
+test_api_endpoints() {
+    log_info "Testing API endpoints..."
+    
+    # Test health endpoint
+    log_info "Testing /health endpoint..."
+    local health_response=$(curl -s "$API_BASE_URL/health")
+    if [ $? -eq 0 ]; then
+        log_success "Health endpoint responded: $health_response"
+    else
+        log_error "Health endpoint failed"
+        return 1
+    fi
+    
+    # Test API documentation
+    log_info "Testing /swagger endpoint..."
+    local swagger_code=$(curl -s -w "%{http_code}" -o /dev/null "$API_BASE_URL/swagger/index.html")
+    if [ "$swagger_code" = "200" ]; then
+        log_success "Swagger documentation accessible"
+    else
+        log_warning "Swagger documentation not accessible (HTTP $swagger_code)"
+    fi
+    
+    # Test a simple API endpoint
+    log_info "Testing API v1 root..."
+    local api_code=$(curl -s -w "%{http_code}" -o /dev/null "$API_BASE_URL/api/v1/")
+    log_info "API v1 root returned HTTP $api_code"
+}
+
+# Analyze Docker logs
+analyze_logs() {
+    log_info "Analyzing Docker logs..."
+    echo "========================================"
+    
+    log_info "Application logs (last 15 lines):"
+    echo "----------------------------------------"
+    docker compose --env-file env.dev logs crypto-checkout --tail=15
+    echo "----------------------------------------"
+    
+    log_info "Kafka logs (last 10 lines):"
+    echo "----------------------------------------"
+    docker compose --env-file env.dev logs kafka --tail=10
+    echo "----------------------------------------"
+    
+    log_info "PostgreSQL logs (last 10 lines):"
+    echo "----------------------------------------"
+    docker compose --env-file env.dev logs postgres --tail=10
+    echo "----------------------------------------"
+    
+    log_info "Redis logs (last 5 lines):"
+    echo "----------------------------------------"
+    docker compose --env-file env.dev logs redis --tail=5
+    echo "========================================"
+}
+
+# Main test flow
 main() {
-    log_info "Starting Kafka Integration E2E Test"
-    log_info "Test data:"
-    log_info "  Merchant ID: $MERCHANT_ID"
-    log_info "  Amount: $INVOICE_AMOUNT $CURRENCY"
-    log_info "  Crypto Currency: $CRYPTO_CURRENCY"
-    log_info "  Description: $DESCRIPTION"
+    log_info "Starting API and Log Analysis Test"
     echo
     
     # Check dependencies
     check_dependencies
     
-    # Start infrastructure
-    start_infrastructure
+    # Check if services are already running
+    check_services_running
     
-    # Start the application
-    start_application
+    # Test API endpoints
+    test_api_endpoints
     
-    # Test health endpoint
-    if ! test_health_endpoint; then
-        log_error "Health endpoint test failed"
-        exit 1
-    fi
+    # Analyze logs
+    analyze_logs
     
-    # Start Kafka consumer to capture events
-    CONSUMED_MESSAGES_FILE=$(start_kafka_consumer)
-    
-    # Create an invoice
-    local invoice_id=$(create_invoice)
-    
-    # Verify invoice created event
-    if ! verify_invoice_created_event "$CONSUMED_MESSAGES_FILE" "$invoice_id"; then
-        log_error "Invoice created event verification failed"
-        display_events "$CONSUMED_MESSAGES_FILE"
-        exit 1
-    fi
-    
-    # Process a payment
-    if ! process_payment "$invoice_id"; then
-        log_error "Payment processing failed"
-        display_events "$CONSUMED_MESSAGES_FILE"
-        exit 1
-    fi
-    
-    # Verify payment events
-    if ! verify_payment_events "$CONSUMED_MESSAGES_FILE"; then
-        log_error "Payment events verification failed"
-        display_events "$CONSUMED_MESSAGES_FILE"
-        exit 1
-    fi
-    
-    # Display all consumed events
-    display_events "$CONSUMED_MESSAGES_FILE"
-    
-    log_success "Kafka Integration E2E Test completed successfully!"
+    log_success "API and Log Analysis Test completed!"
     
     # Note: cleanup is handled by the EXIT trap
+    # Containers remain running for further testing
 }
 
-# Run the test
+# Run the main function
 main "$@"

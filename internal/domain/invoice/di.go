@@ -1,12 +1,11 @@
 package invoice
 
 import (
-	"crypto-checkout/internal/domain/shared"
 	"go.uber.org/fx"
 )
 
-// Module provides the service layer dependencies.
-var Module = fx.Module("service",
+// Module provides the invoice service layer dependencies.
+var Module = fx.Module("invoice-service",
 	fx.Provide(
 		fx.Annotate(
 			NewInvoiceService,

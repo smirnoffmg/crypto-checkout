@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/merchant"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/pkg/config"
 	"fmt"
@@ -19,6 +20,9 @@ var Module = fx.Module("database",
 		NewGormDBProvider,
 		NewInvoiceRepositoryProvider,
 		NewPaymentRepositoryProvider,
+		NewMerchantRepositoryProvider,
+		NewAPIKeyRepositoryProvider,
+		NewWebhookEndpointRepositoryProvider,
 	),
 	fx.Invoke(InitializeDatabase),
 )
@@ -46,7 +50,7 @@ func NewDatabaseConnection(cfg *config.Config, logger *zap.Logger) (*Connection,
 		URL:      cfg.Database.URL, // Include the URL field
 	}
 
-	conn, err := NewConnection(dbConfig)
+	conn, err := NewConnection(dbConfig, logger)
 	if err != nil {
 		logger.Error("Failed to connect to database", zap.Error(err))
 		return nil, fmt.Errorf("failed to create database connection: %w", err)
@@ -64,6 +68,21 @@ func NewInvoiceRepositoryProvider(conn *Connection) invoice.Repository {
 // NewPaymentRepositoryProvider creates a new payment repository.
 func NewPaymentRepositoryProvider(conn *Connection) payment.Repository {
 	return NewPaymentRepository(conn.DB)
+}
+
+// NewMerchantRepositoryProvider creates a new merchant repository.
+func NewMerchantRepositoryProvider(conn *Connection, logger *zap.Logger) merchant.MerchantRepository {
+	return NewMerchantRepository(conn.DB, logger)
+}
+
+// NewAPIKeyRepositoryProvider creates a new API key repository.
+func NewAPIKeyRepositoryProvider(conn *Connection, logger *zap.Logger) merchant.APIKeyRepository {
+	return NewAPIKeyRepository(conn.DB, logger)
+}
+
+// NewWebhookEndpointRepositoryProvider creates a new webhook endpoint repository.
+func NewWebhookEndpointRepositoryProvider(conn *Connection, logger *zap.Logger) merchant.WebhookEndpointRepository {
+	return NewWebhookEndpointRepository(conn.DB, logger)
 }
 
 // InitializeDatabase initializes the database with migrations.

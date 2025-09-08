@@ -221,6 +221,54 @@ type AnalyticsPayments struct {
 	ByMonth  map[string]int `json:"by_month"`
 }
 
+// MerchantResponse represents a merchant in API responses.
+type MerchantResponse struct {
+	ID           string                    `json:"id"`
+	BusinessName string                    `json:"business_name"`
+	ContactEmail string                    `json:"contact_email"`
+	Status       string                    `json:"status"`
+	Settings     *MerchantSettingsResponse `json:"settings"`
+	CreatedAt    time.Time                 `json:"created_at"`
+	UpdatedAt    time.Time                 `json:"updated_at"`
+}
+
+// MerchantSettingsResponse represents merchant settings in API responses.
+type MerchantSettingsResponse struct {
+	DefaultCurrency string `json:"default_currency"`
+	WebhookURL      string `json:"webhook_url,omitempty"`
+	AutoConfirm     bool   `json:"auto_confirm"`
+}
+
+// APIKeyResponse represents an API key in API responses.
+type APIKeyResponse struct {
+	ID          string     `json:"id"`
+	MerchantID  string     `json:"merchant_id"`
+	KeyType     string     `json:"key_type"`
+	Permissions []string   `json:"permissions"`
+	Status      string     `json:"status"`
+	Name        string     `json:"name"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+// WebhookEndpointResponse represents a webhook endpoint in API responses.
+type WebhookEndpointResponse struct {
+	ID           string            `json:"id"`
+	MerchantID   string            `json:"merchant_id"`
+	URL          string            `json:"url"`
+	Events       []string          `json:"events"`
+	Secret       string            `json:"secret"`
+	Status       string            `json:"status"`
+	MaxRetries   int               `json:"max_retries"`
+	RetryBackoff string            `json:"retry_backoff"`
+	Timeout      int               `json:"timeout"`
+	AllowedIPs   []string          `json:"allowed_ips,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
+}
+
 // ErrorResponse represents an error response payload.
 type ErrorResponse struct {
 	Error     string                 `json:"error"`

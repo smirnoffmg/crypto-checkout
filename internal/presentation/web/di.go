@@ -4,6 +4,7 @@ package web
 import (
 	"context"
 	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/merchant"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/pkg/config"
 	"embed"
@@ -150,11 +151,12 @@ func NewWebSocketHub(logger *zap.Logger) *Hub {
 func NewAPIHandler(
 	invoiceService invoice.InvoiceService,
 	paymentService payment.PaymentService,
+	apiKeyService merchant.APIKeyService,
 	logger *zap.Logger,
 	cfg *config.Config,
 	hub *Hub,
 ) *Handler {
-	return NewHandler(invoiceService, paymentService, logger, cfg, hub)
+	return NewHandler(invoiceService, paymentService, apiKeyService, logger, cfg, hub)
 }
 
 const (

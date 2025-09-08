@@ -19,15 +19,15 @@ type KafkaProducer struct {
 }
 
 // NewKafkaProducer creates a new Kafka producer.
-func NewKafkaProducer(brokers []string, topics map[string]string, logger *zap.Logger) (*KafkaProducer, error) {
-	config := sarama.NewConfig()
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Producer.Retry.Max = 3
-	config.Producer.Return.Successes = true
-	config.Producer.Compression = sarama.CompressionSnappy
-	config.Producer.Flush.Frequency = 100 * time.Millisecond
+func NewKafkaProducer(config *KafkaConfig, logger *zap.Logger) (*KafkaProducer, error) {
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+	saramaConfig.Producer.Retry.Max = 3
+	saramaConfig.Producer.Return.Successes = true
+	saramaConfig.Producer.Compression = sarama.CompressionSnappy
+	saramaConfig.Producer.Flush.Frequency = 100 * time.Millisecond
 
-	producer, err := sarama.NewSyncProducer(brokers, config)
+	producer, err := sarama.NewSyncProducer(config.Brokers, saramaConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
@@ -35,7 +35,7 @@ func NewKafkaProducer(brokers []string, topics map[string]string, logger *zap.Lo
 	return &KafkaProducer{
 		producer: producer,
 		logger:   logger,
-		topics:   topics,
+		topics:   config.Topics,
 	}, nil
 }
 

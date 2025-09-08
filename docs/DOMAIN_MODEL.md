@@ -1,7 +1,6 @@
 # Crypto Checkout Domain Models
 
 - [Crypto Checkout Domain Models](#crypto-checkout-domain-models)
-  - [Overview](#overview)
   - [Bounded Contexts](#bounded-contexts)
   - [Core Aggregates](#core-aggregates)
     - [1. Merchant Aggregate](#1-merchant-aggregate)
@@ -26,6 +25,7 @@
       - [Aggregate Root: NotificationTemplate](#aggregate-root-notificationtemplate)
   - [Value Objects](#value-objects)
     - [Money](#money)
+    - [MerchantSettings](#merchantsettings)
     - [PaymentAddress](#paymentaddress)
     - [ExchangeRate](#exchangerate)
     - [PaymentTolerance](#paymenttolerance)
@@ -48,9 +48,6 @@
     - [Global Invariants](#global-invariants)
     - [Aggregate-Specific Invariants](#aggregate-specific-invariants)
 
-## Overview
-
-The Crypto Checkout domain encompasses cryptocurrency payment processing for merchants, managing the complete lifecycle from invoice creation through payment confirmation and settlement. The domain is organized around **6 core aggregates** with clear boundaries, comprehensive business rules, and event-driven interactions.
 
 ---
 
@@ -71,7 +68,7 @@ The Crypto Checkout domain encompasses cryptocurrency payment processing for mer
 
 ### 1. Merchant Aggregate
 
-**Purpose**: Manages business entities, their access credentials, operational settings, and billing
+**Purpose**: Manages business entities, their access credentials, operational settings, and transaction fee configuration
 
 #### Aggregate Root: Merchant
 
@@ -81,7 +78,6 @@ The Crypto Checkout domain encompasses cryptocurrency payment processing for mer
 | **BusinessName** | String           | Company/business name     | 2-255 characters, required                            |
 | **ContactEmail** | String           | Primary contact email     | Valid email, unique                                   |
 | **Status**       | MerchantStatus   | Current account status    | Enum: active, suspended, pending_verification, closed |
-| **PlanType**     | PlanType         | Subscription plan level   | Enum: free, pro, enterprise                           |
 | **Settings**     | MerchantSettings | Configuration preferences | JSON object                                           |
 | **CreatedAt**    | Timestamp        | Account creation time     | Immutable                                             |
 | **UpdatedAt**    | Timestamp        | Last modification time    | Auto-updated                                          |
@@ -120,13 +116,11 @@ The Crypto Checkout domain encompasses cryptocurrency payment processing for mer
 
 #### Business Rules - Merchant Aggregate
 
-| Rule Category              | Rule                                                  | Enforcement | Exception Handling         |
-| -------------------------- | ----------------------------------------------------- | ----------- | -------------------------- |
-| **Plan Limits**            | Free: 2 API keys, Pro: 10 keys, Enterprise: unlimited | Hard limit  | Upgrade prompt             |
-| **Status Requirements**    | Live API keys require active merchant status          | Hard limit  | Status correction required |
-| **Webhook Limits**         | Free: 1 endpoint, Pro: 5, Enterprise: unlimited       | Hard limit  | Plan upgrade required      |
-| **Permission Inheritance** | API key permissions ⊆ merchant plan permissions       | Hard limit  | Permission reduction       |
-| **Email Uniqueness**       | Contact email must be unique across merchants         | Hard limit  | Registration rejection     |
+| Rule Category           | Rule                                          | Enforcement | Exception Handling         |
+| ----------------------- | --------------------------------------------- | ----------- | -------------------------- |
+| **Status Requirements** | Live API keys require active merchant status  | Hard limit  | Status correction required |
+| **Email Uniqueness**    | Contact email must be unique across merchants | Hard limit  | Registration rejection     |
+| **Fee Configuration**   | Fee percentage must be between 0% and 10%     | Hard limit  | Configuration validation   |
 
 ### 2. Invoice Aggregate
 
@@ -340,6 +334,18 @@ stateDiagram-v2
 
 **Behavior**: Addition, subtraction, currency conversion with exchange rates
 
+### MerchantSettings
+
+| Attribute                 | Type             | Description                | Validation           |
+| ------------------------- | ---------------- | -------------------------- | -------------------- |
+| **DefaultCurrency**       | Currency         | Default fiat currency      | Enum: USD, EUR, etc. |
+| **DefaultCryptoCurrency** | CryptoCurrency   | Default crypto currency    | Enum: USDT, BTC, ETH |
+| **InvoiceExpiryMinutes**  | Integer          | Default invoice expiration | 5-1440 minutes       |
+| **FeePercentage**         | Decimal          | Transaction fee percentage | 0.0-10.0             |
+| **PaymentTolerance**      | PaymentTolerance | Payment tolerance settings | Nested value object  |
+
+**Behavior**: Settings validation, default value application
+
 ### PaymentAddress
 
 | Attribute       | Type              | Description           | Validation                    |
@@ -410,9 +416,10 @@ stateDiagram-v2
 
 | Event                 | Trigger             | Payload                           | Consumers                     |
 | --------------------- | ------------------- | --------------------------------- | ----------------------------- |
-| **MerchantCreated**   | New merchant signup | MerchantID, PlanType              | Onboarding, Analytics         |
+| **MerchantCreated**   | New merchant signup | MerchantID, Settings              | Onboarding, Analytics         |
 | **ApiKeyGenerated**   | New API key created | ApiKeyID, MerchantID, Permissions | Security, Audit               |
 | **MerchantSuspended** | Account suspension  | MerchantID, Reason                | Access control, Notifications |
+| **SettingsUpdated**   | Settings changed    | MerchantID, UpdatedSettings       | Configuration, Audit          |
 
 ---
 
@@ -444,7 +451,7 @@ stateDiagram-v2
 
 | Method                      | Purpose                  | Input                  | Output             |
 | --------------------------- | ------------------------ | ---------------------- | ------------------ |
-| **CreateMerchant**          | New merchant signup      | BusinessInfo, PlanType | Merchant           |
+| **CreateMerchant**          | New merchant signup      | BusinessInfo, Settings | Merchant           |
 | **GenerateInitialApiKey**   | Create first API key     | Merchant, Permissions  | ApiKey             |
 | **SendWelcomeNotification** | Onboarding communication | Merchant, ApiKey       | NotificationResult |
 
@@ -490,7 +497,6 @@ erDiagram
     Merchant ||--o{ Invoice : creates
     Merchant ||--o{ ApiKey : has
     Merchant ||--o{ WebhookEndpoint : configures
-    Merchant ||--|| MerchantPayoutSettings : configures
     Merchant ||--o{ Customer : serves
     Merchant ||--|| MerchantAnalytics : generates
     
@@ -500,29 +506,19 @@ erDiagram
     Invoice ||--o{ AuditEntry : logs
     Invoice ||--o{ WebhookDelivery : triggers
     
-    Payment ||--o{ ForwardingAttempt : has
-    
-    HotWallet ||--o{ WalletTransaction : executes
-    HotWallet ||--o{ RefillRequest : receives
-    HotWallet ||--o{ Payment : forwards
-    
     SystemConfiguration ||--o{ ExchangeRate : provides
     NotificationTemplate ||--o{ NotificationDelivery : generates
 ```
 
 ### Cross-Aggregate References
 
-| Referencing Aggregate      | Referenced Aggregate | Reference Type        | Consistency Model                    |
-| -------------------------- | -------------------- | --------------------- | ------------------------------------ |
-| **Invoice**                | **Merchant**         | MerchantID            | Eventually consistent                |
-| **Invoice**                | **Customer**         | CustomerID (optional) | Eventually consistent                |
-| **Payment**                | **Invoice**          | InvoiceID             | Strongly consistent (same aggregate) |
-| **Payment**                | **HotWallet**        | WalletAddress         | Eventually consistent                |
-| **ApiKey**                 | **Merchant**         | MerchantID            | Strongly consistent (same aggregate) |
-| **MerchantPayoutSettings** | **Merchant**         | MerchantID            | Strongly consistent (same aggregate) |
-| **MerchantAnalytics**      | **Merchant**         | MerchantID            | Eventually consistent                |
-| **WalletTransaction**      | **Payment**          | PaymentID (optional)  | Eventually consistent                |
-| **ForwardingAttempt**      | **Payment**          | PaymentID             | Strongly consistent (same aggregate) |
+| Referencing Aggregate | Referenced Aggregate | Reference Type        | Consistency Model                    |
+| --------------------- | -------------------- | --------------------- | ------------------------------------ |
+| **Invoice**           | **Merchant**         | MerchantID            | Eventually consistent                |
+| **Invoice**           | **Customer**         | CustomerID (optional) | Eventually consistent                |
+| **Payment**           | **Invoice**          | InvoiceID             | Strongly consistent (same aggregate) |
+| **ApiKey**            | **Merchant**         | MerchantID            | Strongly consistent (same aggregate) |
+| **MerchantAnalytics** | **Merchant**         | MerchantID            | Eventually consistent                |
 
 ---
 
@@ -539,11 +535,13 @@ erDiagram
 
 ### Aggregate-Specific Invariants
 
-| Aggregate    | Invariant                               | Enforcement             |
-| ------------ | --------------------------------------- | ----------------------- |
-| **Merchant** | API key permissions ⊆ plan permissions  | Business logic          |
-| **Invoice**  | Total = Subtotal + Tax                  | Value object validation |
-| **Payment**  | Confirmations ≥ 0 and ≤ network maximum | Entity validation       |
-| **Customer** | Email unique within merchant scope      | Repository constraint   |
+| Aggregate      | Invariant                                       | Enforcement             |
+| -------------- | ----------------------------------------------- | ----------------------- |
+| **Merchant**   | Platform fee must be between 0.1% and 5.0%      | Business logic          |
+| **Invoice**    | Total = Subtotal + Tax                          | Value object validation |
+| **Payment**    | Confirmations ≥ 0 and ≤ network maximum         | Entity validation       |
+| **Customer**   | Email unique within merchant scope              | Repository constraint   |
+| **Settlement** | NetAmount = GrossAmount - PlatformFeeAmount     | Business logic          |
+| **Settlement** | PlatformFeeAmount = GrossAmount × FeePercentage | Business logic          |
 
-This domain model provides a comprehensive foundation for the Crypto Checkout platform, ensuring business rule enforcement, data consistency, and clear aggregate boundaries while supporting the full payment processing lifecycle.
+This domain model provides a comprehensive foundation for the Crypto Checkout platform as a payment processor, ensuring proper fee calculation, real-time settlement, and transparent merchant payouts while supporting the full payment processing lifecycle.

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/merchant"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/internal/infrastructure/database"
@@ -48,6 +49,62 @@ func (m *mockEventBus) PublishEvents(ctx context.Context, events []*shared.BaseD
 	return nil
 }
 
+// MockAPIKeyService is a mock implementation of merchant.APIKeyService for testing
+type MockAPIKeyService struct{}
+
+func (m *MockAPIKeyService) CreateAPIKey(
+	ctx context.Context,
+	req *merchant.CreateAPIKeyRequest,
+) (*merchant.CreateAPIKeyResponse, error) {
+	return &merchant.CreateAPIKeyResponse{
+		APIKey: &merchant.APIKey{},
+	}, nil
+}
+
+func (m *MockAPIKeyService) ListAPIKeys(
+	ctx context.Context,
+	req *merchant.ListAPIKeysRequest,
+) (*merchant.ListAPIKeysResponse, error) {
+	return &merchant.ListAPIKeysResponse{
+		APIKeys: []*merchant.APIKey{},
+	}, nil
+}
+
+func (m *MockAPIKeyService) GetAPIKey(
+	ctx context.Context,
+	req *merchant.GetAPIKeyRequest,
+) (*merchant.GetAPIKeyResponse, error) {
+	return &merchant.GetAPIKeyResponse{
+		APIKey: &merchant.APIKey{},
+	}, nil
+}
+
+func (m *MockAPIKeyService) UpdateAPIKey(
+	ctx context.Context,
+	req *merchant.UpdateAPIKeyRequest,
+) (*merchant.UpdateAPIKeyResponse, error) {
+	return &merchant.UpdateAPIKeyResponse{
+		APIKey: &merchant.APIKey{},
+	}, nil
+}
+
+func (m *MockAPIKeyService) RevokeAPIKey(
+	ctx context.Context,
+	req *merchant.RevokeAPIKeyRequest,
+) (*merchant.RevokeAPIKeyResponse, error) {
+	return &merchant.RevokeAPIKeyResponse{}, nil
+}
+
+func (m *MockAPIKeyService) ValidateAPIKey(
+	ctx context.Context,
+	req *merchant.ValidateAPIKeyRequest,
+) (*merchant.ValidateAPIKeyResponse, error) {
+	return &merchant.ValidateAPIKeyResponse{
+		Valid:  true,
+		APIKey: &merchant.APIKey{},
+	}, nil
+}
+
 // CreateTestHandler creates a test handler with real services for integration testing
 func CreateTestHandler() *Handler {
 	// Create real services with in-memory SQLite database
@@ -56,7 +113,7 @@ func CreateTestHandler() *Handler {
 	// Create in-memory database connection
 	db, err := database.NewConnection(config.DatabaseConfig{
 		URL: "sqlite://:memory:",
-	})
+	}, logger)
 	if err != nil {
 		panic("Failed to create test database: " + err.Error())
 	}
@@ -77,6 +134,9 @@ func CreateTestHandler() *Handler {
 	invoiceService := invoice.NewInvoiceService(invoiceRepo, mockEventBus, logger)
 	paymentService := payment.NewPaymentService(paymentRepo, mockEventBus, logger)
 
+	// Create mock API key service for testing
+	mockAPIKeyService := &MockAPIKeyService{}
+
 	// Create real handler with real services
-	return NewHandler(invoiceService, paymentService, logger, &config.Config{}, nil)
+	return NewHandler(invoiceService, paymentService, mockAPIKeyService, logger, &config.Config{}, nil)
 }

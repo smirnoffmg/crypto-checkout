@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +19,7 @@ func setupPaymentTestDB(t *testing.T) *gorm.DB {
 		URL: "file::memory:",
 	}
 
-	conn, err := database.NewConnection(cfg)
+	conn, err := database.NewConnection(cfg, zap.NewNop())
 	require.NoError(t, err)
 
 	// Run migrations

@@ -18,6 +18,10 @@ type PaymentServiceImpl struct {
 
 // NewPaymentService creates a new payment service.
 func NewPaymentService(repository Repository, eventBus shared.EventBus, logger *zap.Logger) PaymentService {
+	logger.Info("Creating PaymentService",
+		zap.Bool("eventBus_provided", eventBus != nil),
+		zap.Bool("repository_provided", repository != nil))
+
 	return &PaymentServiceImpl{
 		repository: repository,
 		eventBus:   eventBus,

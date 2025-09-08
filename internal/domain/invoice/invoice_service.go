@@ -21,6 +21,10 @@ type InvoiceServiceImpl struct {
 
 // NewInvoiceService creates a new InvoiceService implementation.
 func NewInvoiceService(repository Repository, eventBus shared.EventBus, logger *zap.Logger) InvoiceService {
+	logger.Info("Creating InvoiceService",
+		zap.Bool("eventBus_provided", eventBus != nil),
+		zap.Bool("repository_provided", repository != nil))
+
 	return &InvoiceServiceImpl{
 		repository: repository,
 		eventBus:   eventBus,

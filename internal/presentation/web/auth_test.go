@@ -2,6 +2,8 @@ package web
 
 import (
 	"bytes"
+	"context"
+	"crypto-checkout/internal/domain/merchant"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,15 +16,87 @@ import (
 	"go.uber.org/zap"
 )
 
+// MockAPIKeyServiceForAuth is a mock implementation for auth tests
+type MockAPIKeyServiceForAuth struct{}
+
+func (m *MockAPIKeyServiceForAuth) CreateAPIKey(
+	ctx context.Context,
+	req *merchant.CreateAPIKeyRequest,
+) (*merchant.CreateAPIKeyResponse, error) {
+	return nil, nil
+}
+
+func (m *MockAPIKeyServiceForAuth) ListAPIKeys(
+	ctx context.Context,
+	req *merchant.ListAPIKeysRequest,
+) (*merchant.ListAPIKeysResponse, error) {
+	return nil, nil
+}
+
+func (m *MockAPIKeyServiceForAuth) GetAPIKey(
+	ctx context.Context,
+	req *merchant.GetAPIKeyRequest,
+) (*merchant.GetAPIKeyResponse, error) {
+	return nil, nil
+}
+
+func (m *MockAPIKeyServiceForAuth) UpdateAPIKey(
+	ctx context.Context,
+	req *merchant.UpdateAPIKeyRequest,
+) (*merchant.UpdateAPIKeyResponse, error) {
+	return nil, nil
+}
+
+func (m *MockAPIKeyServiceForAuth) RevokeAPIKey(
+	ctx context.Context,
+	req *merchant.RevokeAPIKeyRequest,
+) (*merchant.RevokeAPIKeyResponse, error) {
+	return nil, nil
+}
+
+func (m *MockAPIKeyServiceForAuth) ValidateAPIKey(
+	ctx context.Context,
+	req *merchant.ValidateAPIKeyRequest,
+) (*merchant.ValidateAPIKeyResponse, error) {
+	// Mock validation - return valid for test keys
+	if req.RawKey == "sk_live_abc123def456" {
+		// Create a real API key for testing
+		apiKey, err := merchant.NewAPIKey(
+			"test-api-key-id",
+			"test-merchant-id",
+			req.RawKey,
+			merchant.KeyTypeLive,
+			[]string{"invoices:create", "invoices:read", "*"},
+			"Test API Key",
+			nil, // no expiration
+		)
+		if err != nil {
+			return &merchant.ValidateAPIKeyResponse{
+				Valid:  false,
+				APIKey: nil,
+			}, err
+		}
+		return &merchant.ValidateAPIKeyResponse{
+			Valid:  true,
+			APIKey: apiKey,
+		}, nil
+	}
+	return &merchant.ValidateAPIKeyResponse{
+		Valid:  false,
+		APIKey: nil,
+	}, nil
+}
+
 func TestAuthTokenEndpoint(t *testing.T) {
 	// Setup
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()
 	router := gin.New()
 
-	// Create a test handler that would normally be injected
+	// Create a test handler with mock API key service
 	handler := &Handler{
-		Logger: logger,
+		Logger:        logger,
+		APIKeyService: &MockAPIKeyServiceForAuth{},
 	}
 
 	// Register the auth token route
