@@ -257,7 +257,7 @@ func ToCreateInvoiceResponse(inv *invoice.Invoice) CreateInvoiceResponse {
 	}
 
 	// Construct customer URL
-	customerURL := "https://checkout.crypto-checkout.com/invoice/" + inv.ID()
+	customerURL := "https://checkout.thecryptocheckout.com/invoice/" + inv.ID()
 
 	// Get expiration time
 	var expiresAt time.Time

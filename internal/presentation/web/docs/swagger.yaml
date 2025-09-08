@@ -203,15 +203,15 @@ definitions:
 host: localhost:8080
 info:
   contact:
-    email: support@crypto-checkout.com
+    email: support@thecryptocheckout.com
     name: API Support
-    url: https://crypto-checkout.com/support
+    url: https://thecryptocheckout.com/support
   description: A comprehensive cryptocurrency payment processing API for merchants
     and customers.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
-  termsOfService: https://crypto-checkout.com/terms
+  termsOfService: https://thecryptocheckout.com/terms
   title: Crypto Checkout API
   version: "1.0"
 paths:

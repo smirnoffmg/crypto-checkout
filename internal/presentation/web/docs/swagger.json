@@ -7,11 +7,11 @@
     "info": {
         "description": "A comprehensive cryptocurrency payment processing API for merchants and customers.",
         "title": "Crypto Checkout API",
-        "termsOfService": "https://crypto-checkout.com/terms",
+        "termsOfService": "https://thecryptocheckout.com/terms",
         "contact": {
             "name": "API Support",
-            "url": "https://crypto-checkout.com/support",
-            "email": "support@crypto-checkout.com"
+            "url": "https://thecryptocheckout.com/support",
+            "email": "support@thecryptocheckout.com"
         },
         "license": {
             "name": "MIT",

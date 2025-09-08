@@ -47,22 +47,22 @@
 
 **Merchant/Admin API** (Authenticated):
 ```
-https://api.crypto-checkout.com/api/v1
+https://api.thecryptocheckout.com/api/v1
 ```
 
 **Customer API** (Public):
 ```
-https://api.crypto-checkout.com/api/v1/public
+https://api.thecryptocheckout.com/api/v1/public
 ```
 
 **Payment Web App** (HTML Pages):
 ```
-https://pay.crypto-checkout.com
+https://pay.thecryptocheckout.com
 ```
 
 **Real-time Events**:
 ```
-wss://events.crypto-checkout.com/api/v1
+wss://events.thecryptocheckout.com/api/v1
 ```
 
 ## Authentication
@@ -168,9 +168,9 @@ Content-Type: application/json
   "crypto_currency": "USDT",
   "usdt_amount": 16.49,
   "address": "TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN",
-  "qr_code_url": "https://api.crypto-checkout.com/api/v1/public/invoice/inv_abc123/qr?size=256",
+  "qr_code_url": "https://api.thecryptocheckout.com/api/v1/public/invoice/inv_abc123/qr?size=256",
   "status": "created",
-  "customer_url": "https://pay.crypto-checkout.com/invoice/inv_abc123",
+  "customer_url": "https://pay.thecryptocheckout.com/invoice/inv_abc123",
   "expires_at": "2025-01-15T10:30:00Z",
   "created_at": "2025-01-15T10:00:00Z",
   "exchange_rate": {
@@ -286,7 +286,7 @@ Content-Type: application/json
 
 ### Payment Web App (HTML Interface)
 ```http
-GET https://pay.crypto-checkout.com/invoice/{invoice_id}
+GET https://pay.thecryptocheckout.com/invoice/{invoice_id}
 Accept: text/html
 ```
 
@@ -301,7 +301,7 @@ The payment web app is a separate frontend application that:
 - Handles success/failure redirects
 
 #### Payment Flow
-1. **Customer visits payment URL**: `https://pay.crypto-checkout.com/invoice/inv_abc123`
+1. **Customer visits payment URL**: `https://pay.thecryptocheckout.com/invoice/inv_abc123`
 2. **Web app fetches invoice data**: `GET /api/v1/public/invoice/inv_abc123` 
 3. **Displays payment interface**: QR code, amount, address, timer
 4. **Establishes real-time connection**: Server-Sent Events for status updates
@@ -314,7 +314,7 @@ The payment web app is a separate frontend application that:
 #### View Invoice (Customer)
 ```http
 GET /api/v1/public/invoice/{invoice_id}
-Host: api.crypto-checkout.com
+Host: api.thecryptocheckout.com
 ```
 
 **Response (public data only):**
@@ -356,7 +356,7 @@ Host: api.crypto-checkout.com
 ### Real-time Payment Updates (Server-Sent Events)
 ```http
 GET /api/v1/public/invoice/{invoice_id}/events
-Host: api.crypto-checkout.com
+Host: api.thecryptocheckout.com
 Accept: text/event-stream
 ```
 
@@ -372,7 +372,7 @@ data: {"event": "invoice.paid", "status": "paid", "paid_at": "2025-01-15T10:18:0
 ### Get QR Code
 ```http
 GET /api/v1/public/invoice/{invoice_id}/qr?size=256&format=png&style=modern
-Host: api.crypto-checkout.com
+Host: api.thecryptocheckout.com
 ```
 
 **Query Parameters:**
@@ -511,7 +511,7 @@ X-Crypto-Checkout-Event: invoice.paid
       "Split large orders into multiple invoices",
       "Contact support for higher limits"
     ],
-    "documentation_url": "https://docs.crypto-checkout.com/errors#invalid-amount"
+    "documentation_url": "https://docs.thecryptocheckout.com/errors#invalid-amount"
   },
   "request_id": "req_abc123",
   "trace_id": "trace_xyz789",
@@ -649,12 +649,12 @@ sequenceDiagram
 graph TB
     subgraph "Crypto Checkout System"
         subgraph "API Layer"
-            MA[Merchant API<br/>api.crypto-checkout.com/api/v1]
-            CA[Customer API<br/>api.crypto-checkout.com/api/v1/public]
+            MA[Merchant API<br/>api.thecryptocheckout.com/api/v1]
+            CA[Customer API<br/>api.thecryptocheckout.com/api/v1/public]
         end
         
         subgraph "Frontend Layer"
-            WA[Payment Web App<br/>pay.crypto-checkout.com]
+            WA[Payment Web App<br/>pay.thecryptocheckout.com]
         end
         
         subgraph "Infrastructure Layer"

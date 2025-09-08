@@ -2,11 +2,11 @@
 // @title Crypto Checkout API
 // @version 1.0
 // @description A comprehensive cryptocurrency payment processing API for merchants and customers.
-// @termsOfService https://crypto-checkout.com/terms
+// @termsOfService https://thecryptocheckout.com/terms
 
 // @contact.name API Support
-// @contact.url https://crypto-checkout.com/support
-// @contact.email support@crypto-checkout.com
+// @contact.url https://thecryptocheckout.com/support
+// @contact.email support@thecryptocheckout.com
 
 // @license.name MIT
 // @license.url https://opensource.org/licenses/MIT

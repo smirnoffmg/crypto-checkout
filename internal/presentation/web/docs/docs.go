@@ -9,11 +9,11 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "https://crypto-checkout.com/terms",
+        "termsOfService": "https://thecryptocheckout.com/terms",
         "contact": {
             "name": "API Support",
-            "url": "https://crypto-checkout.com/support",
-            "email": "support@crypto-checkout.com"
+            "url": "https://thecryptocheckout.com/support",
+            "email": "support@thecryptocheckout.com"
         },
         "license": {
             "name": "MIT",
