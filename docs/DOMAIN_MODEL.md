@@ -1,66 +1,58 @@
-# Crypto Checkout Domain Models
+# Crypto Checkout Domain Model
 
-- [Crypto Checkout Domain Models](#crypto-checkout-domain-models)
+- [Crypto Checkout Domain Model](#crypto-checkout-domain-model)
   - [Bounded Contexts](#bounded-contexts)
   - [Core Aggregates](#core-aggregates)
     - [1. Merchant Aggregate](#1-merchant-aggregate)
       - [Aggregate Root: Merchant](#aggregate-root-merchant)
+      - [Merchant State Transitions](#merchant-state-transitions)
       - [Entities within Merchant Aggregate](#entities-within-merchant-aggregate)
       - [Business Rules - Merchant Aggregate](#business-rules---merchant-aggregate)
     - [2. Invoice Aggregate](#2-invoice-aggregate)
       - [Aggregate Root: Invoice](#aggregate-root-invoice)
+      - [Invoice State Transitions](#invoice-state-transitions)
       - [Entities within Invoice Aggregate](#entities-within-invoice-aggregate)
-      - [Invoice Status Transitions](#invoice-status-transitions)
-      - [Payment Status Transitions](#payment-status-transitions)
       - [Business Rules - Invoice Aggregate](#business-rules---invoice-aggregate)
     - [3. Customer Aggregate](#3-customer-aggregate)
       - [Aggregate Root: Customer](#aggregate-root-customer)
-      - [Entities within Customer Aggregate](#entities-within-customer-aggregate)
-      - [Business Rules - Customer Aggregate](#business-rules---customer-aggregate)
+      - [Entity: PaymentHistory](#entity-paymenthistory)
     - [4. SystemConfiguration Aggregate](#4-systemconfiguration-aggregate)
-      - [Aggregate Root: SystemConfiguration](#aggregate-root-systemconfiguration)
-    - [5. MerchantAnalytics Aggregate](#5-merchantanalytics-aggregate)
-      - [Aggregate Root: MerchantAnalytics](#aggregate-root-merchantanalytics)
-    - [6. NotificationTemplate Aggregate](#6-notificationtemplate-aggregate)
-      - [Aggregate Root: NotificationTemplate](#aggregate-root-notificationtemplate)
   - [Value Objects](#value-objects)
     - [Money](#money)
-    - [MerchantSettings](#merchantsettings)
     - [PaymentAddress](#paymentaddress)
     - [ExchangeRate](#exchangerate)
     - [PaymentTolerance](#paymenttolerance)
-    - [InvoicePricing](#invoicepricing)
+    - [ConfirmationSettings](#confirmationsettings)
   - [Domain Events](#domain-events)
     - [Invoice Events](#invoice-events)
-    - [Payment Events](#payment-events)
+    - [Settlement Events](#settlement-events)
     - [Merchant Events](#merchant-events)
   - [Domain Services](#domain-services)
     - [PaymentReconciliationService](#paymentreconciliationservice)
     - [ExchangeRateService](#exchangerateservice)
+    - [SettlementService](#settlementservice)
     - [MerchantOnboardingService](#merchantonboardingservice)
-    - [WebhookDeliveryService](#webhookdeliveryservice)
   - [Repository Interfaces](#repository-interfaces)
-    - [Core Repositories](#core-repositories)
+    - [Core Repository Operations](#core-repository-operations)
     - [Query Patterns](#query-patterns)
   - [Aggregate Relationships](#aggregate-relationships)
     - [Cross-Aggregate References](#cross-aggregate-references)
+    - [Event-Driven Consistency Flow](#event-driven-consistency-flow)
   - [Domain Invariants](#domain-invariants)
     - [Global Invariants](#global-invariants)
-    - [Aggregate-Specific Invariants](#aggregate-specific-invariants)
-
-
----
+    - [Business Logic Invariants](#business-logic-invariants)
+  - [Implementation Patterns](#implementation-patterns)
+    - [State Management Flow](#state-management-flow)
+    - [Service Transaction Pattern](#service-transaction-pattern)
 
 ## Bounded Contexts
 
-| Bounded Context           | Responsibility                                     | Core Aggregates      | Key Integration Points                |
-| ------------------------- | -------------------------------------------------- | -------------------- | ------------------------------------- |
-| **Merchant Management**   | Business entity lifecycle, access control, billing | Merchant             | Identity providers, billing systems   |
-| **Payment Processing**    | Invoice creation, payment detection, settlement    | Invoice, Customer    | Blockchain networks, webhook delivery |
-| **System Configuration**  | Platform settings, feature flags, integrations     | SystemConfiguration  | External services, monitoring         |
-| **Analytics & Reporting** | Usage metrics, business intelligence               | MerchantAnalytics    | Data warehouses, BI tools             |
-| **Compliance & Audit**    | Transaction monitoring, regulatory compliance      | AuditLog             | Regulatory systems, fraud detection   |
-| **Communication**         | Notification templates, delivery tracking          | NotificationTemplate | Email/SMS providers                   |
+| Bounded Context         | Responsibility                                  | Core Aggregates                | Key Integration Points                |
+| ----------------------- | ----------------------------------------------- | ------------------------------ | ------------------------------------- |
+| **Merchant Management** | Business entity lifecycle, access control       | Merchant                       | Identity providers, billing systems   |
+| **Payment Processing**  | Invoice creation, payment detection, settlement | Invoice, Payment               | Blockchain networks, webhook delivery |
+| **Customer Management** | Customer sessions, payment history              | Customer                       | Merchant systems, analytics           |
+| **Platform Operations** | Configuration, analytics, compliance            | SystemConfiguration, Analytics | External services, monitoring         |
 
 ---
 
@@ -68,7 +60,7 @@
 
 ### 1. Merchant Aggregate
 
-**Purpose**: Manages business entities, their access credentials, operational settings, and transaction fee configuration
+**Purpose**: Manages business entities, their access credentials, and platform fee configuration
 
 #### Aggregate Root: Merchant
 
@@ -78,9 +70,21 @@
 | **BusinessName** | String           | Company/business name     | 2-255 characters, required                            |
 | **ContactEmail** | String           | Primary contact email     | Valid email, unique                                   |
 | **Status**       | MerchantStatus   | Current account status    | Enum: active, suspended, pending_verification, closed |
-| **Settings**     | MerchantSettings | Configuration preferences | JSON object                                           |
+| **Settings**     | MerchantSettings | Configuration preferences | JSON object with fee settings                         |
 | **CreatedAt**    | Timestamp        | Account creation time     | Immutable                                             |
 | **UpdatedAt**    | Timestamp        | Last modification time    | Auto-updated                                          |
+
+#### Merchant State Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending_verification: Account Created
+    pending_verification --> active: Verification Complete
+    active --> suspended: Compliance Violation
+    suspended --> active: Manual Reactivation
+    active --> closed: Account Closure
+    closed --> [*]
+```
 
 #### Entities within Merchant Aggregate
 
@@ -97,7 +101,6 @@
 | **Name**        | String        | User-friendly identifier  | Optional, 1-100 characters     |
 | **LastUsedAt**  | Timestamp     | Last request timestamp    | Nullable                       |
 | **ExpiresAt**   | Timestamp     | Expiration date           | Nullable                       |
-| **CreatedAt**   | Timestamp     | Key creation time         | Immutable                      |
 
 **WebhookEndpoint Entity**
 
@@ -112,40 +115,68 @@
 | **MaxRetries**   | Integer           | Retry attempt limit       | 1-10, default 5                |
 | **RetryBackoff** | BackoffStrategy   | Retry timing strategy     | Enum: linear, exponential      |
 | **Timeout**      | Duration          | Request timeout           | 5-60 seconds                   |
-| **AllowedIPs**   | String[]          | IP whitelist              | CIDR notation                  |
 
 #### Business Rules - Merchant Aggregate
 
-| Rule Category           | Rule                                          | Enforcement | Exception Handling         |
-| ----------------------- | --------------------------------------------- | ----------- | -------------------------- |
-| **Status Requirements** | Live API keys require active merchant status  | Hard limit  | Status correction required |
-| **Email Uniqueness**    | Contact email must be unique across merchants | Hard limit  | Registration rejection     |
-| **Fee Configuration**   | Fee percentage must be between 0% and 10%     | Hard limit  | Configuration validation   |
+| Rule                     | Enforcement         | Description                                       |
+| ------------------------ | ------------------- | ------------------------------------------------- |
+| **Unique Email**         | Hard constraint     | Contact email must be unique across all merchants |
+| **Fee Range**            | Business validation | Platform fee percentage must be 0.1% - 5.0%       |
+| **Live Key Restriction** | Authorization       | Live API keys require active merchant status      |
+| **Webhook Limits**       | Resource constraint | Maximum 5 webhook endpoints per merchant          |
 
 ### 2. Invoice Aggregate
 
-**Purpose**: Manages payment requests and their complete payment lifecycle
+**Purpose**: Manages payment requests through their complete lifecycle with automatic settlement
 
 #### Aggregate Root: Invoice
 
-| Attribute            | Type             | Description                | Constraints                   |
-| -------------------- | ---------------- | -------------------------- | ----------------------------- |
-| **ID**               | InvoiceID        | Unique identifier          | UUID, immutable               |
-| **MerchantID**       | MerchantID       | Owning merchant reference  | Foreign key, immutable        |
-| **CustomerID**       | CustomerID       | Paying customer reference  | Optional foreign key          |
-| **Title**            | String           | Invoice display title      | 1-255 characters              |
-| **Description**      | String           | Invoice description        | Optional, max 1000 characters |
-| **Items**            | InvoiceItem[]    | Line items                 | Min 1 item                    |
-| **Pricing**          | InvoicePricing   | Amount calculations        | Immutable after creation      |
-| **CryptoCurrency**   | CryptoCurrency   | Payment currency           | Enum: USDT, BTC, ETH          |
-| **PaymentAddress**   | PaymentAddress   | Blockchain destination     | Generated, immutable          |
-| **Status**           | InvoiceStatus    | Current lifecycle status   | State machine transitions     |
-| **ExchangeRate**     | ExchangeRate     | Currency conversion rate   | Locked at creation            |
-| **PaymentTolerance** | PaymentTolerance | Under/overpayment handling | Configurable thresholds       |
-| **ExpiresAt**        | Timestamp        | Invoice expiration         | Default 30 minutes            |
-| **CreatedAt**        | Timestamp        | Creation time              | Immutable                     |
-| **UpdatedAt**        | Timestamp        | Last status change         | Auto-updated                  |
-| **PaidAt**           | Timestamp        | Payment completion time    | Nullable                      |
+| Attribute            | Type             | Description                 | Constraints                   |
+| -------------------- | ---------------- | --------------------------- | ----------------------------- |
+| **ID**               | InvoiceID        | Unique identifier           | UUID, immutable               |
+| **MerchantID**       | MerchantID       | Owning merchant reference   | Foreign key, immutable        |
+| **CustomerID**       | CustomerID       | Paying customer reference   | Optional foreign key          |
+| **Title**            | String           | Invoice display title       | 1-255 characters              |
+| **Description**      | String           | Invoice description         | Optional, max 1000 characters |
+| **Items**            | InvoiceItem[]    | Line items                  | Min 1 item                    |
+| **Subtotal**         | Money            | Pre-tax amount              | Positive value                |
+| **Tax**              | Money            | Tax amount                  | Non-negative                  |
+| **Total**            | Money            | Final amount                | Subtotal + Tax                |
+| **Currency**         | String           | Fiat currency               | USD, EUR, etc.                |
+| **CryptoCurrency**   | String           | Payment currency            | USDT only                     |
+| **CryptoAmount**     | Money            | Locked exchange rate amount | Positive value                |
+| **PaymentAddress**   | PaymentAddress   | Blockchain destination      | Generated, immutable          |
+| **Status**           | InvoiceStatus    | Current lifecycle status    | State machine transitions     |
+| **ExchangeRate**     | ExchangeRate     | Currency conversion rate    | Locked at creation            |
+| **PaymentTolerance** | PaymentTolerance | Under/overpayment handling  | Configurable thresholds       |
+| **ExpiresAt**        | Timestamp        | Invoice expiration          | Default 30 minutes            |
+| **CreatedAt**        | Timestamp        | Creation time               | Immutable                     |
+| **UpdatedAt**        | Timestamp        | Last status change          | Auto-updated                  |
+| **PaidAt**           | Timestamp        | Payment completion time     | Nullable                      |
+
+#### Invoice State Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: Invoice Created
+    
+    pending --> partial: Partial Payment
+    pending --> confirming: Full Payment Detected  
+    pending --> expired: Timeout
+    pending --> cancelled: Manual Cancel
+    
+    partial --> confirming: Full Payment Complete
+    partial --> cancelled: Manual Cancel + Refund
+    
+    confirming --> paid: Payment Confirmed
+    confirming --> pending: Blockchain Reorg
+    
+    paid --> refunded: Manual Refund
+    
+    expired --> [*]
+    cancelled --> [*]
+    refunded --> [*]
+```
 
 #### Entities within Invoice Aggregate
 
@@ -163,100 +194,52 @@
 | **Confirmations**         | Integer       | Blockchain confirmations    | 0-N, increasing            |
 | **RequiredConfirmations** | Integer       | Confirmations needed        | Based on amount            |
 | **BlockNumber**           | Integer       | Block inclusion number      | Positive                   |
-| **BlockHash**             | String        | Block hash                  | Immutable                  |
 | **NetworkFee**            | Money         | Transaction fee paid        | Positive                   |
 | **DetectedAt**            | Timestamp     | First detection time        | Immutable                  |
 | **ConfirmedAt**           | Timestamp     | Confirmation time           | Nullable                   |
 
-**AuditEntry Entity**
+**Settlement Entity**
 
-| Attribute     | Type         | Description              | Constraints                          |
-| ------------- | ------------ | ------------------------ | ------------------------------------ |
-| **ID**        | AuditEntryID | Unique identifier        | UUID                                 |
-| **InvoiceID** | InvoiceID    | Parent invoice reference | Foreign key                          |
-| **Event**     | AuditEvent   | Event type               | Enum: created, paid, cancelled, etc. |
-| **Actor**     | Actor        | Who triggered the event  | API key, system, customer            |
-| **Timestamp** | Timestamp    | Event occurrence time    | Immutable                            |
-| **IPAddress** | String       | Request origin IP        | IPv4/IPv6                            |
-| **UserAgent** | String       | Client identification    | Optional                             |
-| **RequestID** | String       | Request correlation ID   | For debugging                        |
-| **Data**      | Map          | Event-specific data      | JSON object                          |
-
-#### Invoice Status Transitions
-
-```mermaid
-stateDiagram-v2
-    [*] --> pending: Invoice Created
-    
-    pending --> partial: Partial Payment
-    pending --> confirming: Full Payment Detected
-    pending --> expired: Timeout
-    pending --> cancelled: Manual Cancel
-    
-    partial --> confirming: Full Payment Complete
-    partial --> expired: Timeout
-    partial --> cancelled: Manual Cancel
-    
-    confirming --> paid: Payment Confirmed
-    confirming --> expired: Timeout
-    confirming --> cancelled: Manual Cancel
-    
-    paid --> refunded: Refund Processed
-    expired --> [*]
-    cancelled --> [*]
-    refunded --> [*]
-```
-
-#### Payment Status Transitions
-
-```mermaid
-stateDiagram-v2
-    [*] --> detected: Transaction Found
-    
-    detected --> confirming: Included in Block
-    detected --> failed: Transaction Failed
-    
-    confirming --> confirmed: Sufficient Confirmations
-    confirming --> orphaned: Block Orphaned
-    confirming --> failed: Transaction Reverted
-    
-    orphaned --> detected: Back to Mempool
-    orphaned --> failed: Transaction Dropped
-    
-    confirmed --> [*]: ✅ Final State
-    failed --> [*]: ❌ Final State
-```
+| Attribute             | Type             | Description              | Constraints                      |
+| --------------------- | ---------------- | ------------------------ | -------------------------------- |
+| **ID**                | SettlementID     | Unique identifier        | UUID                             |
+| **InvoiceID**         | InvoiceID        | Parent invoice reference | Foreign key                      |
+| **MerchantID**        | MerchantID       | Merchant reference       | Foreign key                      |
+| **GrossAmount**       | Money            | Total customer payment   | Positive value                   |
+| **PlatformFeeAmount** | Money            | Platform fee deducted    | Calculated amount                |
+| **NetAmount**         | Money            | Amount to merchant       | GrossAmount - PlatformFeeAmount  |
+| **FeePercentage**     | Decimal          | Applied fee rate         | From merchant settings           |
+| **Status**            | SettlementStatus | Settlement status        | Enum: pending, completed, failed |
+| **SettledAt**         | Timestamp        | Settlement completion    | Nullable                         |
 
 #### Business Rules - Invoice Aggregate
 
-| Rule Category           | Rule                                                   | Enforcement | Exception Handling                |
-| ----------------------- | ------------------------------------------------------ | ----------- | --------------------------------- |
-| **Immutability**        | Once created, only status and payments can change      | Hard limit  | Create new invoice                |
-| **Payment Sufficiency** | Invoice paid when confirmed_payments ≥ required_amount | Automatic   | Tolerance thresholds apply        |
-| **Expiration**          | Auto-expire after timeout if unpaid                    | Automatic   | Grace period for partial payments |
-| **Exchange Rate**       | Rate must be valid when invoice created                | Hard limit  | Rate refresh required             |
-| **Address Validation**  | Payment address must match network format              | Hard limit  | Address regeneration              |
+| Rule                       | Description                                  | Enforcement              |
+| -------------------------- | -------------------------------------------- | ------------------------ |
+| **Amount Immutability**    | Once created, pricing cannot change          | Domain validation        |
+| **Payment Sufficiency**    | Invoice paid when confirmed payments ≥ total | Event-driven calculation |
+| **Expiration Protection**  | Partial payments prevent auto-expiration     | FSM validation           |
+| **Exchange Rate Validity** | Rate must not be expired during creation     | Domain service           |
+| **Settlement Calculation** | NetAmount = GrossAmount - PlatformFeeAmount  | Business logic           |
 
 ### 3. Customer Aggregate
 
-**Purpose**: Manages end-user payment sessions and transaction history
+**Purpose**: Manages customer payment sessions and transaction history per merchant
 
 #### Aggregate Root: Customer
 
 | Attribute      | Type           | Description               | Constraints                     |
 | -------------- | -------------- | ------------------------- | ------------------------------- |
 | **ID**         | CustomerID     | Unique identifier         | UUID                            |
-| **Email**      | String         | Customer email address    | Valid email                     |
 | **MerchantID** | MerchantID     | Owning merchant reference | Foreign key                     |
+| **Email**      | String         | Customer email address    | Valid email                     |
 | **Status**     | CustomerStatus | Account status            | Enum: active, blocked, inactive |
+| **Metadata**   | Map            | Custom merchant data      | JSON object                     |
 | **CreatedAt**  | Timestamp      | Account creation time     | Immutable                       |
 | **UpdatedAt**  | Timestamp      | Last modification time    | Auto-updated                    |
 | **LastSeenAt** | Timestamp      | Last activity time        | Nullable                        |
-| **Metadata**   | Map            | Custom merchant data      | JSON object                     |
 
-#### Entities within Customer Aggregate
-
-**PaymentHistory Entity**
+#### Entity: PaymentHistory
 
 | Attribute     | Type          | Description               | Constraints                    |
 | ------------- | ------------- | ------------------------- | ------------------------------ |
@@ -266,20 +249,9 @@ stateDiagram-v2
 | **PaidAt**    | Timestamp     | Payment completion time   | Nullable                       |
 | **CreatedAt** | Timestamp     | Invoice creation time     | Immutable                      |
 
-#### Business Rules - Customer Aggregate
-
-| Rule Category            | Rule                                       | Enforcement | Exception Handling             |
-| ------------------------ | ------------------------------------------ | ----------- | ------------------------------ |
-| **Merchant Isolation**   | Customer belongs to single merchant        | Hard limit  | Separate customer per merchant |
-| **History Immutability** | Payment history is append-only             | Hard limit  | No updates allowed             |
-| **Status Enforcement**   | Blocked customers cannot make new payments | Hard limit  | Status change required         |
-| **Privacy Protection**   | PII handling follows regulations           | Soft limit  | Data minimization              |
-
 ### 4. SystemConfiguration Aggregate
 
-**Purpose**: Manages platform-wide settings and integrations
-
-#### Aggregate Root: SystemConfiguration
+**Purpose**: Platform-wide settings and feature management
 
 | Attribute                 | Type             | Description               | Constraints             |
 | ------------------------- | ---------------- | ------------------------- | ----------------------- |
@@ -291,36 +263,6 @@ stateDiagram-v2
 | **FeatureFlags**          | FeatureFlag[]    | Feature toggles           | Boolean flags           |
 | **UpdatedAt**             | Timestamp        | Last configuration change | Auto-updated            |
 
-### 5. MerchantAnalytics Aggregate
-
-**Purpose**: Provides business intelligence and performance metrics
-
-#### Aggregate Root: MerchantAnalytics
-
-| Attribute          | Type             | Description            | Constraints          |
-| ------------------ | ---------------- | ---------------------- | -------------------- |
-| **MerchantID**     | MerchantID       | Target merchant        | Foreign key          |
-| **Period**         | TimePeriod       | Analysis time range    | Start < End          |
-| **Metrics**        | AnalyticsMetrics | Calculated metrics     | Real-time computed   |
-| **TimeSeriesData** | DataPoint[]      | Historical trends      | Ordered by timestamp |
-| **GeneratedAt**    | Timestamp        | Report generation time | Immutable            |
-
-### 6. NotificationTemplate Aggregate
-
-**Purpose**: Manages communication templates and delivery tracking
-
-#### Aggregate Root: NotificationTemplate
-
-| Attribute        | Type       | Description              | Constraints                  |
-| ---------------- | ---------- | ------------------------ | ---------------------------- |
-| **ID**           | TemplateID | Template identifier      | UUID                         |
-| **MerchantID**   | MerchantID | Owning merchant          | Foreign key                  |
-| **EventType**    | EventType  | Triggering event         | Enum: payment_detected, etc. |
-| **Subject**      | String     | Message subject          | 1-255 characters             |
-| **BodyTemplate** | String     | Message content template | Variable substitution        |
-| **IsActive**     | Boolean    | Template enabled status  | Default true                 |
-| **CreatedAt**    | Timestamp  | Template creation time   | Immutable                    |
-
 ---
 
 ## Value Objects
@@ -330,30 +272,18 @@ stateDiagram-v2
 | Attribute    | Type     | Description     | Validation                     |
 | ------------ | -------- | --------------- | ------------------------------ |
 | **Amount**   | Decimal  | Monetary amount | Positive, max 2 decimal places |
-| **Currency** | Currency | Currency code   | Enum: USD, EUR, etc.           |
+| **Currency** | Currency | Currency code   | Enum: USD, EUR, USDT, etc.     |
 
 **Behavior**: Addition, subtraction, currency conversion with exchange rates
 
-### MerchantSettings
-
-| Attribute                 | Type             | Description                | Validation           |
-| ------------------------- | ---------------- | -------------------------- | -------------------- |
-| **DefaultCurrency**       | Currency         | Default fiat currency      | Enum: USD, EUR, etc. |
-| **DefaultCryptoCurrency** | CryptoCurrency   | Default crypto currency    | Enum: USDT, BTC, ETH |
-| **InvoiceExpiryMinutes**  | Integer          | Default invoice expiration | 5-1440 minutes       |
-| **FeePercentage**         | Decimal          | Transaction fee percentage | 0.0-10.0             |
-| **PaymentTolerance**      | PaymentTolerance | Payment tolerance settings | Nested value object  |
-
-**Behavior**: Settings validation, default value application
-
 ### PaymentAddress
 
-| Attribute       | Type              | Description           | Validation                    |
-| --------------- | ----------------- | --------------------- | ----------------------------- |
-| **Address**     | String            | Blockchain address    | Network-specific format       |
-| **Network**     | BlockchainNetwork | Blockchain network    | Enum: tron, ethereum, bitcoin |
-| **GeneratedAt** | Timestamp         | Address creation time | Immutable                     |
-| **ExpiresAt**   | Timestamp         | Address expiration    | Optional                      |
+| Attribute     | Type              | Description           | Validation              |
+| ------------- | ----------------- | --------------------- | ----------------------- |
+| **Address**   | String            | Blockchain address    | Network-specific format |
+| **Network**   | BlockchainNetwork | Blockchain network    | Enum: tron              |
+| **Currency**  | String            | Currency type         | USDT                    |
+| **CreatedAt** | Timestamp         | Address creation time | Immutable               |
 
 **Behavior**: Address validation, expiration checking, QR code generation
 
@@ -380,15 +310,16 @@ stateDiagram-v2
 
 **Behavior**: Payment amount validation, tolerance checking
 
-### InvoicePricing
+### ConfirmationSettings
 
-| Attribute    | Type  | Description    | Validation     |
-| ------------ | ----- | -------------- | -------------- |
-| **Subtotal** | Money | Pre-tax amount | Positive       |
-| **Tax**      | Money | Tax amount     | Non-negative   |
-| **Total**    | Money | Final amount   | Subtotal + Tax |
+| Attribute               | Type    | Description                   | Validation       |
+| ----------------------- | ------- | ----------------------------- | ---------------- |
+| **MerchantOverride**    | Integer | Merchant-specific requirement | Optional, 1-50   |
+| **DefaultSmallAmount**  | Integer | Default for <$100             | 1 confirmation   |
+| **DefaultMediumAmount** | Integer | Default for $100-$10k         | 12 confirmations |
+| **DefaultLargeAmount**  | Integer | Default for >$10k             | 19 confirmations |
 
-**Behavior**: Price calculation validation, tax computation
+**Logic**: Amount-based default with merchant override capability
 
 ---
 
@@ -396,30 +327,32 @@ stateDiagram-v2
 
 ### Invoice Events
 
-| Event                | Trigger                 | Payload                          | Consumers           |
-| -------------------- | ----------------------- | -------------------------------- | ------------------- |
-| **InvoiceCreated**   | New invoice created     | InvoiceID, MerchantID, Amount    | Analytics, Webhooks |
-| **InvoiceExpired**   | Invoice timeout reached | InvoiceID, ExpiredAt             | Cleanup, Analytics  |
-| **InvoiceCancelled** | Manual cancellation     | InvoiceID, Reason                | Webhooks, Analytics |
-| **InvoicePaid**      | Payment confirmed       | InvoiceID, TotalReceived, PaidAt | Webhooks, Analytics |
+| Event                    | Trigger                   | Payload                       | Consumers              |
+| ------------------------ | ------------------------- | ----------------------------- | ---------------------- |
+| **InvoiceCreated**       | New invoice created       | InvoiceID, MerchantID, Amount | Analytics, Monitoring  |
+| **PaymentDetected**      | Blockchain payment found  | PaymentID, Amount, TxHash     | Real-time UI, Webhooks |
+| **InvoicePartiallyPaid** | Partial payment confirmed | InvoiceID, PartialAmount      | Payment tracking       |
+| **InvoicePaid**          | Full payment confirmed    | InvoiceID, TotalReceived      | Settlement trigger     |
+| **InvoiceExpired**       | Timeout reached           | InvoiceID, ExpiredAt          | Cleanup processes      |
+| **InvoiceCancelled**     | Manual cancellation       | InvoiceID, Reason             | Webhooks, Analytics    |
 
-### Payment Events
+### Settlement Events
 
-| Event                 | Trigger                  | Payload                      | Consumers                 |
-| --------------------- | ------------------------ | ---------------------------- | ------------------------- |
-| **PaymentDetected**   | Transaction found        | PaymentID, InvoiceID, Amount | Real-time UI, Webhooks    |
-| **PaymentConfirming** | Gaining confirmations    | PaymentID, Confirmations     | Real-time UI              |
-| **PaymentConfirmed**  | Sufficient confirmations | PaymentID, ConfirmedAt       | Invoice status, Webhooks  |
-| **PaymentFailed**     | Transaction failed       | PaymentID, Reason            | Error handling, Analytics |
+| Event                    | Trigger           | Payload                          | Consumers             |
+| ------------------------ | ----------------- | -------------------------------- | --------------------- |
+| **SettlementCreated**    | Payment confirmed | SettlementID, GrossAmount        | Platform accounting   |
+| **PlatformFeeCollected** | Fee calculation   | SettlementID, FeeAmount, FeeRate | Revenue tracking      |
+| **SettlementCompleted**  | Payout processed  | SettlementID, NetAmount          | Merchant notification |
+| **SettlementFailed**     | Payout failure    | SettlementID, FailureReason      | Operations alert      |
 
 ### Merchant Events
 
-| Event                 | Trigger             | Payload                           | Consumers                     |
-| --------------------- | ------------------- | --------------------------------- | ----------------------------- |
-| **MerchantCreated**   | New merchant signup | MerchantID, Settings              | Onboarding, Analytics         |
-| **ApiKeyGenerated**   | New API key created | ApiKeyID, MerchantID, Permissions | Security, Audit               |
-| **MerchantSuspended** | Account suspension  | MerchantID, Reason                | Access control, Notifications |
-| **SettingsUpdated**   | Settings changed    | MerchantID, UpdatedSettings       | Configuration, Audit          |
+| Event                 | Trigger              | Payload                     | Consumers           |
+| --------------------- | -------------------- | --------------------------- | ------------------- |
+| **MerchantCreated**   | Account signup       | MerchantID, Settings        | Onboarding flow     |
+| **ApiKeyGenerated**   | New API key          | ApiKeyID, Permissions       | Security monitoring |
+| **SettingsUpdated**   | Configuration change | MerchantID, UpdatedSettings | Audit trail         |
+| **MerchantSuspended** | Compliance action    | MerchantID, Reason          | Access control      |
 
 ---
 
@@ -427,7 +360,7 @@ stateDiagram-v2
 
 ### PaymentReconciliationService
 
-**Purpose**: Handles payment amount validation and overpayment/underpayment logic
+**Purpose**: Handles payment amount validation and tolerance logic
 
 | Method                   | Purpose                 | Input                         | Output               |
 | ------------------------ | ----------------------- | ----------------------------- | -------------------- |
@@ -435,9 +368,18 @@ stateDiagram-v2
 | **HandleOverpayment**    | Process excess payment  | Amount, Action                | ProcessingResult     |
 | **ValidateUnderpayment** | Check minimum payment   | Required, Received, Tolerance | ValidationResult     |
 
+**ReconciliationResult Structure**
+
+| Field             | Type   | Description                       |
+| ----------------- | ------ | --------------------------------- |
+| **Status**        | String | "sufficient", "partial", "excess" |
+| **ExcessAmount**  | Money  | Amount over requirement           |
+| **DeficitAmount** | Money  | Amount under requirement          |
+| **Action**        | String | Recommended action                |
+
 ### ExchangeRateService
 
-**Purpose**: Manages currency conversion rates and price locking
+**Purpose**: Currency conversion with rate locking
 
 | Method            | Purpose                 | Input                | Output       |
 | ----------------- | ----------------------- | -------------------- | ------------ |
@@ -445,39 +387,47 @@ stateDiagram-v2
 | **ConvertAmount** | Currency conversion     | Amount, ExchangeRate | Money        |
 | **ValidateRate**  | Check rate validity     | ExchangeRate         | Boolean      |
 
+### SettlementService
+
+**Purpose**: Platform fee calculation and merchant payouts
+
+| Method                   | Purpose                    | Input                      | Output       |
+| ------------------------ | -------------------------- | -------------------------- | ------------ |
+| **CreateSettlement**     | Generate settlement record | Invoice, Payment, Merchant | Settlement   |
+| **CalculatePlatformFee** | Compute platform fee       | GrossAmount, FeePercentage | Money        |
+| **ProcessPayout**        | Execute merchant payout    | Settlement                 | PayoutResult |
+
+**PayoutResult Structure**
+
+| Field             | Type      | Description                 |
+| ----------------- | --------- | --------------------------- |
+| **Success**       | Boolean   | Payout success status       |
+| **PayoutTxHash**  | String    | Blockchain transaction hash |
+| **FailureReason** | String    | Error description if failed |
+| **ProcessedAt**   | Timestamp | Processing completion time  |
+
 ### MerchantOnboardingService
 
-**Purpose**: Handles merchant account creation and initial setup
+**Purpose**: New merchant account setup
 
-| Method                      | Purpose                  | Input                  | Output             |
-| --------------------------- | ------------------------ | ---------------------- | ------------------ |
-| **CreateMerchant**          | New merchant signup      | BusinessInfo, Settings | Merchant           |
-| **GenerateInitialApiKey**   | Create first API key     | Merchant, Permissions  | ApiKey             |
-| **SendWelcomeNotification** | Onboarding communication | Merchant, ApiKey       | NotificationResult |
-
-### WebhookDeliveryService
-
-**Purpose**: Manages reliable webhook delivery with retry logic
-
-| Method                  | Purpose                   | Input           | Output           |
-| ----------------------- | ------------------------- | --------------- | ---------------- |
-| **DeliverWebhook**      | Send webhook notification | Endpoint, Event | DeliveryResult   |
-| **RetryFailedDelivery** | Reattempt delivery        | DeliveryAttempt | DeliveryResult   |
-| **ValidateEndpoint**    | Test webhook URL          | WebhookEndpoint | ValidationResult |
+| Method                      | Purpose                  | Input                 | Output             |
+| --------------------------- | ------------------------ | --------------------- | ------------------ |
+| **CreateMerchant**          | New merchant signup      | CreateMerchantRequest | Merchant           |
+| **GenerateInitialApiKey**   | Create first API key     | Merchant, Permissions | ApiKey             |
+| **SendWelcomeNotification** | Onboarding communication | Merchant, ApiKey      | NotificationResult |
 
 ---
 
 ## Repository Interfaces
 
-### Core Repositories
+### Core Repository Operations
 
-| Repository             | Primary Entity | Key Methods                       | Caching Strategy     |
-| ---------------------- | -------------- | --------------------------------- | -------------------- |
-| **MerchantRepository** | Merchant       | Save, FindByID, FindByEmail       | Redis 5min TTL       |
-| **InvoiceRepository**  | Invoice        | Save, FindByID, FindByMerchant    | Redis 1min TTL       |
-| **PaymentRepository**  | Payment        | Save, FindByTxHash, FindByInvoice | No cache (real-time) |
-| **CustomerRepository** | Customer       | Save, FindByID, FindByEmail       | Redis 5min TTL       |
-| **ApiKeyRepository**   | ApiKey         | Save, FindByHash, FindByMerchant  | Redis 10min TTL      |
+| Repository               | Primary Entity | Key Methods                         | Caching Strategy     |
+| ------------------------ | -------------- | ----------------------------------- | -------------------- |
+| **MerchantRepository**   | Merchant       | FindByID, FindByEmail, Save         | Redis 5min TTL       |
+| **InvoiceRepository**    | Invoice        | FindByID, FindByMerchant, Save      | Redis 1min TTL       |
+| **PaymentRepository**    | Payment        | FindByTxHash, FindByInvoice, Save   | No cache (real-time) |
+| **SettlementRepository** | Settlement     | FindByInvoice, FindByMerchant, Save | Redis 5min TTL       |
 
 ### Query Patterns
 
@@ -492,24 +442,6 @@ stateDiagram-v2
 
 ## Aggregate Relationships
 
-```mermaid
-erDiagram
-    Merchant ||--o{ Invoice : creates
-    Merchant ||--o{ ApiKey : has
-    Merchant ||--o{ WebhookEndpoint : configures
-    Merchant ||--o{ Customer : serves
-    Merchant ||--|| MerchantAnalytics : generates
-    
-    Customer ||--o{ Invoice : pays
-    
-    Invoice ||--o{ Payment : receives
-    Invoice ||--o{ AuditEntry : logs
-    Invoice ||--o{ WebhookDelivery : triggers
-    
-    SystemConfiguration ||--o{ ExchangeRate : provides
-    NotificationTemplate ||--o{ NotificationDelivery : generates
-```
-
 ### Cross-Aggregate References
 
 | Referencing Aggregate | Referenced Aggregate | Reference Type        | Consistency Model                    |
@@ -517,8 +449,24 @@ erDiagram
 | **Invoice**           | **Merchant**         | MerchantID            | Eventually consistent                |
 | **Invoice**           | **Customer**         | CustomerID (optional) | Eventually consistent                |
 | **Payment**           | **Invoice**          | InvoiceID             | Strongly consistent (same aggregate) |
-| **ApiKey**            | **Merchant**         | MerchantID            | Strongly consistent (same aggregate) |
-| **MerchantAnalytics** | **Merchant**         | MerchantID            | Eventually consistent                |
+| **Settlement**        | **Invoice**          | InvoiceID             | Eventually consistent                |
+| **Settlement**        | **Merchant**         | MerchantID            | Eventually consistent                |
+
+### Event-Driven Consistency Flow
+
+```mermaid
+graph LR
+    subgraph "Payment Processing"
+        PAYMENT[Payment Confirmed]
+        INVOICE[Invoice Status Updated]
+        SETTLEMENT[Settlement Created]
+        MERCHANT[Merchant Notification]
+    end
+    
+    PAYMENT --> INVOICE
+    INVOICE --> SETTLEMENT
+    SETTLEMENT --> MERCHANT
+```
 
 ---
 
@@ -528,20 +476,71 @@ erDiagram
 
 | Invariant            | Description                                 | Enforcement               |
 | -------------------- | ------------------------------------------- | ------------------------- |
-| **Unique Email**     | Merchant contact emails must be unique      | Database constraint       |
 | **Positive Amounts** | All monetary amounts must be positive       | Value object validation   |
+| **Unique Emails**    | Merchant contact emails must be unique      | Repository constraint     |
 | **Valid Addresses**  | Payment addresses must match network format | Domain service validation |
 | **Rate Expiration**  | Exchange rates must not be expired          | Business rule enforcement |
 
-### Aggregate-Specific Invariants
+### Business Logic Invariants
 
-| Aggregate      | Invariant                                       | Enforcement             |
-| -------------- | ----------------------------------------------- | ----------------------- |
-| **Merchant**   | Platform fee must be between 0.1% and 5.0%      | Business logic          |
-| **Invoice**    | Total = Subtotal + Tax                          | Value object validation |
-| **Payment**    | Confirmations ≥ 0 and ≤ network maximum         | Entity validation       |
-| **Customer**   | Email unique within merchant scope              | Repository constraint   |
-| **Settlement** | NetAmount = GrossAmount - PlatformFeeAmount     | Business logic          |
-| **Settlement** | PlatformFeeAmount = GrossAmount × FeePercentage | Business logic          |
+| Aggregate      | Invariant                                       | Enforcement              |
+| -------------- | ----------------------------------------------- | ------------------------ |
+| **Invoice**    | Total = Subtotal + Tax                          | Value object validation  |
+| **Payment**    | Confirmations ≥ 0 and ≤ network maximum         | Entity validation        |
+| **Settlement** | NetAmount = GrossAmount - PlatformFeeAmount     | Business logic           |
+| **Settlement** | PlatformFeeAmount = GrossAmount × FeePercentage | Calculation validation   |
+| **Merchant**   | Platform fee must be 0.1% - 5.0%                | Business rule validation |
 
-This domain model provides a comprehensive foundation for the Crypto Checkout platform as a payment processor, ensuring proper fee calculation, real-time settlement, and transparent merchant payouts while supporting the full payment processing lifecycle.
+---
+
+## Implementation Patterns
+
+### State Management Flow
+
+```mermaid
+sequenceDiagram
+    participant Service
+    participant Aggregate
+    participant FSM
+    participant Events
+    
+    Service->>Aggregate: Execute Business Operation
+    Aggregate->>FSM: Validate State Transition
+    FSM-->>Aggregate: Transition Valid/Invalid
+    Aggregate->>Aggregate: Apply Business Rules
+    Aggregate->>Events: Collect Domain Events
+    Events-->>Service: Return Pending Events
+    Service->>Service: Publish Events via Outbox
+```
+
+### Service Transaction Pattern
+
+```mermaid
+graph TB
+    subgraph "Service Layer"
+        START[Start Transaction]
+        LOAD[Load Aggregates]
+        DOMAIN[Execute Domain Logic]
+        PERSIST[Save State Changes]
+        EVENTS[Store Events in Outbox]
+        COMMIT[Commit Transaction]
+    end
+    
+    START --> LOAD
+    LOAD --> DOMAIN
+    DOMAIN --> PERSIST
+    PERSIST --> EVENTS
+    EVENTS --> COMMIT
+    
+    subgraph "Event Publishing"
+        OUTBOX[Outbox Publisher]
+        KAFKA[Kafka Event Bus]
+        HANDLERS[Event Handlers]
+    end
+    
+    COMMIT --> OUTBOX
+    OUTBOX --> KAFKA
+    KAFKA --> HANDLERS
+```
+
+This domain model provides a comprehensive foundation for the Crypto Checkout platform, ensuring proper separation of concerns, event-driven consistency, and robust business rule enforcement while supporting the near-real-time settlement requirements.

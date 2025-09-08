@@ -3,77 +3,64 @@
 - [Crypto Checkout API v1](#crypto-checkout-api-v1)
   - [Base URLs](#base-urls)
   - [Authentication](#authentication)
-    - [API Key Authentication (Recommended for Server-to-Server)](#api-key-authentication-recommended-for-server-to-server)
-    - [JWT Token Authentication (Recommended for Interactive Applications)](#jwt-token-authentication-recommended-for-interactive-applications)
+    - [API Key Authentication (Server-to-Server)](#api-key-authentication-server-to-server)
+    - [JWT Token Authentication (Interactive Applications)](#jwt-token-authentication-interactive-applications)
     - [Permission Scopes](#permission-scopes)
+  - [Multi-Tier Rate Limiting](#multi-tier-rate-limiting)
+    - [Rate Limit Tiers](#rate-limit-tiers)
+    - [Rate Limit Headers](#rate-limit-headers)
   - [Merchant Management](#merchant-management)
     - [Create Merchant Account](#create-merchant-account)
     - [Get Merchant Details](#get-merchant-details)
-    - [Update Merchant Settings](#update-merchant-settings)
-  - [API Key Management](#api-key-management)
-    - [Create API Key](#create-api-key)
-    - [List API Keys](#list-api-keys)
-    - [Update API Key](#update-api-key)
-    - [Revoke API Key](#revoke-api-key)
-  - [Webhook Management](#webhook-management)
-    - [Create Webhook Endpoint](#create-webhook-endpoint)
-    - [List Webhook Endpoints](#list-webhook-endpoints)
-    - [Update Webhook Endpoint](#update-webhook-endpoint)
-    - [Delete Webhook Endpoint](#delete-webhook-endpoint)
-    - [Test Webhook Endpoint](#test-webhook-endpoint)
-    - [Get Webhook Deliveries](#get-webhook-deliveries)
   - [Invoice Management](#invoice-management)
     - [Create Invoice](#create-invoice)
     - [Get Invoice (Merchant View)](#get-invoice-merchant-view)
     - [List Invoices](#list-invoices)
-    - [Cancel Invoice](#cancel-invoice)
   - [Customer API (Public) \& Payment Web App](#customer-api-public--payment-web-app)
-    - [Payment Web App (HTML Interface)](#payment-web-app-html-interface)
-      - [Payment Web App Architecture](#payment-web-app-architecture)
-      - [Payment Flow](#payment-flow)
-    - [Customer API Endpoints (JSON Data)](#customer-api-endpoints-json-data)
-      - [View Invoice (Customer)](#view-invoice-customer)
+    - [Payment Web App Architecture](#payment-web-app-architecture)
+    - [View Invoice (Customer)](#view-invoice-customer)
     - [Real-time Payment Updates (Server-Sent Events)](#real-time-payment-updates-server-sent-events)
     - [Get QR Code](#get-qr-code)
+  - [Settlement API](#settlement-api)
+    - [Get Settlement Details](#get-settlement-details)
+    - [List Settlements](#list-settlements)
   - [Analytics \& Reporting](#analytics--reporting)
     - [Get Analytics Dashboard](#get-analytics-dashboard)
+  - [Webhook Management](#webhook-management)
+    - [Create Webhook Endpoint](#create-webhook-endpoint)
+    - [Webhook Event Payloads](#webhook-event-payloads)
   - [Error Handling](#error-handling)
     - [Error Response Format](#error-response-format)
     - [HTTP Status Codes](#http-status-codes)
-  - [Rate Limiting](#rate-limiting)
-    - [Merchant/Admin API Limits](#merchantadmin-api-limits)
-    - [Customer API Limits](#customer-api-limits)
-    - [Rate Limit Headers](#rate-limit-headers)
-  - [Security Features](#security-features)
-  - [Integration Flow Examples](#integration-flow-examples)
-    - [Complete Merchant Onboarding Flow](#complete-merchant-onboarding-flow)
-    - [Payment Processing Flow](#payment-processing-flow)
+  - [Integration Examples](#integration-examples)
+    - [Complete Payment Flow](#complete-payment-flow)
+    - [Settlement Reconciliation Flow](#settlement-reconciliation-flow)
 
 ## Base URLs
 
 **Merchant/Admin API** (Authenticated):
 ```
-https://api.thecryptocheckout.com/api/v1
+https://api.cryptocheckout.com/api/v1
 ```
 
 **Customer API** (Public):
 ```
-https://api.thecryptocheckout.com/api/v1/public
+https://api.cryptocheckout.com/api/v1/public
 ```
 
 **Payment Web App** (HTML Pages):
 ```
-https://pay.thecryptocheckout.com
+https://pay.cryptocheckout.com
 ```
 
 **Real-time Events**:
 ```
-wss://events.thecryptocheckout.com/api/v1
+wss://events.cryptocheckout.com/api/v1
 ```
 
 ## Authentication
 
-### API Key Authentication (Recommended for Server-to-Server)
+### API Key Authentication (Server-to-Server)
 ```http
 Authorization: Bearer sk_live_abc123...
 ```
@@ -84,7 +71,7 @@ Authorization: Bearer sk_live_abc123...
 - `sk_live_invoices_*` - Production keys limited to invoice operations
 - `sk_live_analytics_*` - Production keys limited to analytics
 
-### JWT Token Authentication (Recommended for Interactive Applications)
+### JWT Token Authentication (Interactive Applications)
 ```http
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -112,7 +99,33 @@ Content-Type: application/json
 - `invoices:refund` - Process refunds
 - `analytics:read` - Access analytics data
 - `webhooks:manage` - Configure webhooks
+- `settlements:read` - Access settlement data
 - `*` - Full access (API keys only)
+
+---
+
+## Multi-Tier Rate Limiting
+
+### Rate Limit Tiers
+
+| Tier                | Scope                | Limits                                                                                                                      | Purpose                   |
+| ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **API Key Tier**    | Per merchant API key | Invoice creation: 1000/hour<br/>Status checks: 5000/hour<br/>Settlement queries: 2000/hour<br/>Webhook management: 100/hour | Business logic protection |
+| **IP Address Tier** | Per client IP        | 100 requests/minute<br/>Burst: 200 requests/5min                                                                            | Abuse prevention          |
+| **Global Tier**     | System-wide          | 1000 requests/second<br/>Peak: 2000 requests/second                                                                         | Infrastructure protection |
+
+### Rate Limit Headers
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 950
+X-RateLimit-Reset: 1642694400
+X-RateLimit-Window: 3600
+X-RateLimit-Policy: sliding-window
+X-RateLimit-Tier: api-key
+Retry-After: 60
+```
+
+---
 
 ## Merchant Management
 
@@ -132,10 +145,15 @@ Content-Type: application/json
     "default_currency": "USD",
     "default_crypto_currency": "USDT",
     "invoice_expiry_minutes": 30,
+    "platform_fee_percentage": 1.0,
     "payment_tolerance": {
       "underpayment_threshold": 0.01,
       "overpayment_threshold": 1.00,
       "overpayment_action": "credit_account"
+    },
+    "confirmation_settings": {
+      "merchant_override": null,
+      "use_amount_based_defaults": true
     }
   }
 }
@@ -153,10 +171,15 @@ Content-Type: application/json
     "default_currency": "USD",
     "default_crypto_currency": "USDT",
     "invoice_expiry_minutes": 30,
+    "platform_fee_percentage": 1.0,
     "payment_tolerance": {
       "underpayment_threshold": 0.01,
       "overpayment_threshold": 1.00,
       "overpayment_action": "credit_account"
+    },
+    "confirmation_settings": {
+      "merchant_override": null,
+      "use_amount_based_defaults": true
     }
   },
   "created_at": "2025-01-15T10:00:00Z",
@@ -170,7 +193,7 @@ GET /api/v1/merchants/me
 Authorization: Bearer sk_live_abc123...
 ```
 
-**Response:**
+**Response includes settlement metrics:**
 ```json
 {
   "id": "mer_abc123",
@@ -179,13 +202,10 @@ Authorization: Bearer sk_live_abc123...
   "status": "active",
   "plan_type": "pro",
   "settings": {
-    "default_currency": "USD",
-    "default_crypto_currency": "USDT",
-    "invoice_expiry_minutes": 30,
-    "payment_tolerance": {
-      "underpayment_threshold": 0.01,
-      "overpayment_threshold": 1.00,
-      "overpayment_action": "credit_account"
+    "platform_fee_percentage": 1.0,
+    "confirmation_settings": {
+      "merchant_override": null,
+      "use_amount_based_defaults": true
     }
   },
   "plan_limits": {
@@ -198,254 +218,18 @@ Authorization: Bearer sk_live_abc123...
     "webhook_endpoints_count": 2,
     "monthly_invoices": 1250
   },
+  "settlement_summary": {
+    "total_gross_volume": 125000.50,
+    "total_platform_fees": 1250.00,
+    "total_net_payouts": 123750.50,
+    "settlement_success_rate": 99.8
+  },
   "created_at": "2025-01-15T10:00:00Z",
   "updated_at": "2025-01-15T10:00:00Z"
 }
 ```
 
-### Update Merchant Settings
-```http
-PATCH /api/v1/merchants/me
-Authorization: Bearer sk_live_abc123...
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "business_name": "Acme VPN Services LLC",
-  "settings": {
-    "default_currency": "EUR",
-    "invoice_expiry_minutes": 45
-  }
-}
-```
-
-## API Key Management
-
-### Create API Key
-```http
-POST /api/v1/api-keys
-Authorization: Bearer sk_live_abc123...
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "name": "Production API Key",
-  "key_type": "live",
-  "permissions": ["invoices:create", "invoices:read", "analytics:read"],
-  "expires_at": "2025-12-31T23:59:59Z"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "key_xyz789",
-  "name": "Production API Key",
-  "key": "sk_live_def456...",
-  "key_type": "live",
-  "permissions": ["invoices:create", "invoices:read", "analytics:read"],
-  "status": "active",
-  "expires_at": "2025-12-31T23:59:59Z",
-  "created_at": "2025-01-15T10:00:00Z",
-  "last_used_at": null
-}
-```
-
-### List API Keys
-```http
-GET /api/v1/api-keys?status=active&limit=20
-Authorization: Bearer sk_live_abc123...
-```
-
-**Query Parameters:**
-- `status` - Filter by status (`active`, `revoked`, `expired`)
-- `key_type` - Filter by type (`live`, `test`)
-- `limit` - Results per page (max 100, default 20)
-
-**Response:**
-```json
-{
-  "api_keys": [
-    {
-      "id": "key_xyz789",
-      "name": "Production API Key",
-      "key_prefix": "sk_live_def456",
-      "key_type": "live",
-      "permissions": ["invoices:create", "invoices:read", "analytics:read"],
-      "status": "active",
-      "expires_at": "2025-12-31T23:59:59Z",
-      "created_at": "2025-01-15T10:00:00Z",
-      "last_used_at": "2025-01-15T14:30:00Z"
-    }
-  ],
-  "pagination": {
-    "total": 3,
-    "limit": 20,
-    "has_more": false
-  }
-}
-```
-
-### Update API Key
-```http
-PATCH /api/v1/api-keys/{key_id}
-Authorization: Bearer sk_live_abc123...
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "name": "Updated Production Key",
-  "permissions": ["invoices:create", "invoices:read", "invoices:cancel", "analytics:read"]
-}
-```
-
-### Revoke API Key
-```http
-DELETE /api/v1/api-keys/{key_id}
-Authorization: Bearer sk_live_abc123...
-```
-
-**Response:**
-```json
-{
-  "id": "key_xyz789",
-  "status": "revoked",
-  "revoked_at": "2025-01-15T15:00:00Z"
-}
-```
-
-## Webhook Management
-
-### Create Webhook Endpoint
-```http
-POST /api/v1/webhook-endpoints
-Authorization: Bearer sk_live_abc123...
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "url": "https://merchant.com/webhook",
-  "events": ["invoice.paid", "payment.detected", "invoice.expired"],
-  "secret": "whsec_abc123...",
-  "allowed_ips": ["192.168.1.100", "10.0.0.0/8"],
-  "max_retries": 5,
-  "retry_backoff": "exponential",
-  "timeout": 30,
-  "enabled": true
-}
-```
-
-**Response:**
-```json
-{
-  "id": "whe_def456",
-  "url": "https://merchant.com/webhook",
-  "events": ["invoice.paid", "payment.detected", "invoice.expired"],
-  "secret": "whsec_***123",
-  "status": "active",
-  "allowed_ips": ["192.168.1.100", "10.0.0.0/8"],
-  "max_retries": 5,
-  "retry_backoff": "exponential",
-  "timeout": 30,
-  "enabled": true,
-  "created_at": "2025-01-15T10:00:00Z"
-}
-```
-
-### List Webhook Endpoints
-```http
-GET /api/v1/webhook-endpoints?status=active
-Authorization: Bearer sk_live_abc123...
-```
-
-**Response:**
-```json
-{
-  "webhook_endpoints": [
-    {
-      "id": "whe_def456",
-      "url": "https://merchant.com/webhook",
-      "events": ["invoice.paid", "payment.detected", "invoice.expired"],
-      "status": "active",
-      "enabled": true,
-      "last_delivery_at": "2025-01-15T14:30:00Z",
-      "success_rate": 98.5,
-      "created_at": "2025-01-15T10:00:00Z"
-    }
-  ]
-}
-```
-
-### Update Webhook Endpoint
-```http
-PATCH /api/v1/webhook-endpoints/{endpoint_id}
-Authorization: Bearer sk_live_abc123...
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "events": ["invoice.paid", "invoice.cancelled"],
-  "enabled": true,
-  "max_retries": 3
-}
-```
-
-### Delete Webhook Endpoint
-```http
-DELETE /api/v1/webhook-endpoints/{endpoint_id}
-Authorization: Bearer sk_live_abc123...
-```
-
-### Test Webhook Endpoint
-```http
-POST /api/v1/webhook-endpoints/{endpoint_id}/test
-Authorization: Bearer sk_live_abc123...
-```
-
-**Response:**
-```json
-{
-  "test_id": "test_abc123",
-  "status": "delivered",
-  "response_code": 200,
-  "response_time_ms": 150,
-  "delivered_at": "2025-01-15T15:00:00Z"
-}
-```
-
-### Get Webhook Deliveries
-```http
-GET /api/v1/webhook-endpoints/{endpoint_id}/deliveries?limit=50
-Authorization: Bearer sk_live_abc123...
-```
-
-**Response:**
-```json
-{
-  "deliveries": [
-    {
-      "id": "whd_456",
-      "event_type": "invoice.paid",
-      "invoice_id": "inv_abc123",
-      "status": "delivered",
-      "attempts": 1,
-      "response_code": 200,
-      "delivered_at": "2025-01-15T10:18:30Z",
-      "created_at": "2025-01-15T10:18:00Z"
-    }
-  ]
-}
-```
+---
 
 ## Invoice Management
 
@@ -485,6 +269,9 @@ Content-Type: application/json
     "overpayment_threshold": 1.00,
     "overpayment_action": "credit_account"
   },
+  "confirmation_settings": {
+    "merchant_override": 12
+  },
   "webhook_url": "https://merchant.com/webhook",
   "return_url": "https://merchant.com/success",
   "cancel_url": "https://merchant.com/cancel",
@@ -496,7 +283,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
+**Response (Merchant View with Settlement Preview):**
 ```json
 {
   "id": "inv_abc123",
@@ -510,9 +297,9 @@ Content-Type: application/json
   "crypto_currency": "USDT",
   "usdt_amount": 16.49,
   "address": "TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN",
-  "qr_code_url": "https://api.thecryptocheckout.com/api/v1/public/invoice/inv_abc123/qr?size=256",
-  "status": "created",
-  "customer_url": "https://pay.thecryptocheckout.com/invoice/inv_abc123",
+  "qr_code_url": "https://api.cryptocheckout.com/api/v1/public/invoice/inv_abc123/qr?size=256",
+  "status": "pending",
+  "customer_url": "https://pay.cryptocheckout.com/invoice/inv_abc123",
   "expires_at": "2025-01-15T10:30:00Z",
   "created_at": "2025-01-15T10:00:00Z",
   "exchange_rate": {
@@ -521,10 +308,16 @@ Content-Type: application/json
     "locked_at": "2025-01-15T10:00:00Z",
     "expires_at": "2025-01-15T10:30:00Z"
   },
-  "payment_tolerance": {
-    "underpayment_threshold": 0.01,
-    "overpayment_threshold": 1.00,
-    "overpayment_action": "credit_account"
+  "confirmation_settings": {
+    "required_confirmations": 12,
+    "merchant_override": 12,
+    "amount_based_default": 12
+  },
+  "settlement_preview": {
+    "gross_amount": 16.49,
+    "platform_fee_amount": 0.16,
+    "platform_fee_percentage": 1.0,
+    "net_amount": 16.33
   },
   "metadata": {
     "customer_id": "cust_456",
@@ -540,7 +333,7 @@ GET /api/v1/invoices/{invoice_id}
 Authorization: Bearer sk_live_abc123...
 ```
 
-**Response includes comprehensive administrative data:**
+**Response includes complete administrative data:**
 ```json
 {
   "id": "inv_abc123",
@@ -567,6 +360,15 @@ Authorization: Bearer sk_live_abc123...
       "network_fee": 0.12
     }
   ],
+  "settlement": {
+    "id": "set_456",
+    "gross_amount": 16.49,
+    "platform_fee_amount": 0.16,
+    "platform_fee_percentage": 1.0,
+    "net_amount": 16.33,
+    "status": "completed",
+    "settled_at": "2025-01-15T10:18:30Z"
+  },
   "audit_log": [
     {
       "id": "audit_123",
@@ -576,17 +378,6 @@ Authorization: Bearer sk_live_abc123...
       "ip_address": "192.168.1.100",
       "user_agent": "MyApp/1.0",
       "request_id": "req_abc123"
-    }
-  ],
-  "webhook_deliveries": [
-    {
-      "id": "whd_456",
-      "event": "invoice.paid",
-      "url": "https://merchant.com/webhook",
-      "status": "delivered",
-      "attempts": 1,
-      "response_code": 200,
-      "delivered_at": "2025-01-15T10:18:30Z"
     }
   ]
 }
@@ -599,7 +390,7 @@ Authorization: Bearer sk_live_abc123...
 ```
 
 **Query Parameters:**
-- `status` - Filter by status (`created`, `pending`, `paid`, `expired`, `cancelled`)
+- `status` - Filter by status (`pending`, `partial`, `confirming`, `paid`, `expired`, `cancelled`)
 - `limit` - Results per page (max 100, default 20)
 - `cursor` - Pagination cursor
 - `created_after` - ISO 8601 datetime filter
@@ -609,57 +400,24 @@ Authorization: Bearer sk_live_abc123...
 - `currency` - Filter by currency
 - `search` - Text search in title, description, metadata
 
-### Cancel Invoice
-```http
-POST /api/v1/invoices/{invoice_id}/cancel
-Authorization: Bearer sk_live_abc123...
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "reason": "Customer requested cancellation",
-  "refund_partial_payments": true
-}
-```
+---
 
 ## Customer API (Public) & Payment Web App
 
-### Payment Web App (HTML Interface)
-```http
-GET https://pay.thecryptocheckout.com/invoice/{invoice_id}
-Accept: text/html
-```
+### Payment Web App Architecture
+The payment web app serves HTML payment pages with:
+- Invoice data fetched from public API
+- QR codes and payment instructions
+- Real-time payment status updates via Server-Sent Events
+- Success/failure redirects
 
-**Returns HTML payment page with embedded JavaScript for real-time updates.**
-
-#### Payment Web App Architecture
-The payment web app is a separate frontend application that:
-- Serves HTML payment pages to customers
-- Fetches invoice data from the public API
-- Displays QR codes and payment instructions
-- Provides real-time payment status updates
-- Handles success/failure redirects
-
-#### Payment Flow
-1. **Customer visits payment URL**: `https://pay.thecryptocheckout.com/invoice/inv_abc123`
-2. **Web app fetches invoice data**: `GET /api/v1/public/invoice/inv_abc123` 
-3. **Displays payment interface**: QR code, amount, address, timer
-4. **Establishes real-time connection**: Server-Sent Events for status updates
-5. **Customer sends payment**: Via crypto wallet
-6. **Real-time status updates**: Payment detected → confirming → confirmed
-7. **Redirect on completion**: Success/cancel URLs from invoice
-
-### Customer API Endpoints (JSON Data)
-
-#### View Invoice (Customer)
+### View Invoice (Customer)
 ```http
 GET /api/v1/public/invoice/{invoice_id}
-Host: api.thecryptocheckout.com
+Host: api.cryptocheckout.com
 ```
 
-**Response (public data only):**
+**Response (public data only - no fees shown):**
 ```json
 {
   "id": "inv_abc123",
@@ -698,7 +456,7 @@ Host: api.thecryptocheckout.com
 ### Real-time Payment Updates (Server-Sent Events)
 ```http
 GET /api/v1/public/invoice/{invoice_id}/events
-Host: api.thecryptocheckout.com
+Host: api.cryptocheckout.com
 Accept: text/event-stream
 ```
 
@@ -714,7 +472,7 @@ data: {"event": "invoice.paid", "status": "paid", "paid_at": "2025-01-15T10:18:0
 ### Get QR Code
 ```http
 GET /api/v1/public/invoice/{invoice_id}/qr?size=256&format=png&style=modern
-Host: api.thecryptocheckout.com
+Host: api.cryptocheckout.com
 ```
 
 **Query Parameters:**
@@ -722,6 +480,83 @@ Host: api.thecryptocheckout.com
 - `format` - Image format (`png`, `svg`, `pdf`)
 - `style` - QR code style (`classic`, `modern`, `rounded`)
 - `logo` - Include merchant logo (`true`, `false`)
+
+---
+
+## Settlement API
+
+### Get Settlement Details
+```http
+GET /api/v1/settlements/{settlement_id}
+Authorization: Bearer sk_live_abc123...
+```
+
+**Response (complete fee breakdown):**
+```json
+{
+  "id": "set_456",
+  "invoice_id": "inv_abc123",
+  "merchant_id": "mer_abc123",
+  "gross_amount": 16.49,
+  "platform_fee_amount": 0.16,
+  "platform_fee_percentage": 1.0,
+  "net_amount": 16.33,
+  "currency": "USDT",
+  "status": "completed",
+  "settled_at": "2025-01-15T10:18:30Z",
+  "payout_details": {
+    "payout_tx_hash": "def789...",
+    "payout_network_fee": 0.05,
+    "net_received": 16.28
+  },
+  "created_at": "2025-01-15T10:18:00Z"
+}
+```
+
+### List Settlements
+```http
+GET /api/v1/settlements?start_date=2025-01-01&end_date=2025-01-31&limit=50
+Authorization: Bearer sk_live_abc123...
+```
+
+**Query Parameters:**
+- `start_date` - ISO 8601 date filter
+- `end_date` - ISO 8601 date filter
+- `status` - Filter by status (`pending`, `completed`, `failed`)
+- `limit` - Results per page (max 100, default 20)
+- `cursor` - Pagination cursor
+
+**Response (with summary):**
+```json
+{
+  "settlements": [
+    {
+      "id": "set_456",
+      "invoice_id": "inv_abc123",
+      "gross_amount": 16.49,
+      "platform_fee_amount": 0.16,
+      "net_amount": 16.33,
+      "status": "completed",
+      "settled_at": "2025-01-15T10:18:30Z"
+    }
+  ],
+  "summary": {
+    "total_gross_amount": 12500.00,
+    "total_platform_fees": 125.00,
+    "total_net_amount": 12375.00,
+    "average_fee_percentage": 1.0,
+    "settlement_count": 250
+  },
+  "pagination": {
+    "total": 250,
+    "limit": 50,
+    "has_more": true,
+    "next_cursor": "eyJpZCI6InNldF80NTYifQ"
+  }
+}
+```
+
+---
 
 ## Analytics & Reporting
 
@@ -731,37 +566,118 @@ GET /api/v1/analytics?period=30d&group_by=day&timezone=UTC
 Authorization: Bearer sk_live_abc123...
 ```
 
-**Response:**
+**Response (with settlement metrics):**
 ```json
 {
   "period": "30d",
   "timezone": "UTC",
   "metrics": {
     "total_invoices": 1250,
-    "total_amount": 45678.90,
+    "total_gross_amount": 45678.90,
+    "total_platform_fees": 456.79,
+    "total_net_payouts": 45222.11,
     "paid_invoices": 1100,
-    "paid_amount": 42350.75,
     "conversion_rate": 88.0,
-    "average_amount": 36.54,
-    "average_payment_time": 425
+    "average_gross_amount": 36.54,
+    "average_net_amount": 36.17,
+    "effective_fee_rate": 1.0,
+    "average_payment_time": 425,
+    "average_settlement_time": 28
   },
   "time_series": [
     {
       "date": "2025-01-01",
       "invoices_created": 42,
       "invoices_paid": 38,
-      "amount_created": 1534.50,
-      "amount_paid": 1388.75,
+      "gross_amount": 1534.50,
+      "platform_fees": 15.35,
+      "net_payouts": 1519.15,
       "conversion_rate": 90.5
     }
   ],
   "payment_methods": {
-    "USDT": {"count": 800, "amount": 28500.00},
-    "BTC": {"count": 200, "amount": 9850.75},
-    "ETH": {"count": 100, "amount": 4000.00}
+    "USDT": {
+      "count": 1100,
+      "gross_amount": 45678.90,
+      "platform_fees": 456.79,
+      "net_amount": 45222.11
+    }
   }
 }
 ```
+
+---
+
+## Webhook Management
+
+### Create Webhook Endpoint
+```http
+POST /api/v1/webhook-endpoints
+Authorization: Bearer sk_live_abc123...
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "url": "https://merchant.com/webhook",
+  "events": ["invoice.paid", "settlement.completed", "invoice.expired"],
+  "secret": "whsec_abc123...",
+  "allowed_ips": ["192.168.1.100", "10.0.0.0/8"],
+  "max_retries": 5,
+  "retry_backoff": "exponential",
+  "timeout": 30,
+  "enabled": true
+}
+```
+
+**Response:**
+```json
+{
+  "id": "whe_def456",
+  "url": "https://merchant.com/webhook",
+  "events": ["invoice.paid", "settlement.completed", "invoice.expired"],
+  "secret": "whsec_***123",
+  "status": "active",
+  "allowed_ips": ["192.168.1.100", "10.0.0.0/8"],
+  "max_retries": 5,
+  "retry_backoff": "exponential",
+  "timeout": 30,
+  "enabled": true,
+  "created_at": "2025-01-15T10:00:00Z"
+}
+```
+
+### Webhook Event Payloads
+
+**Settlement Completed Event:**
+```json
+{
+  "id": "evt_123",
+  "type": "settlement.completed",
+  "created": "2025-01-15T10:18:30Z",
+  "data": {
+    "settlement": {
+      "id": "set_456",
+      "invoice_id": "inv_abc123",
+      "gross_amount": 16.49,
+      "platform_fee_amount": 0.16,
+      "net_amount": 16.33,
+      "settled_at": "2025-01-15T10:18:30Z"
+    },
+    "invoice": {
+      "id": "inv_abc123",
+      "title": "VPN Service Order",
+      "status": "paid",
+      "metadata": {
+        "order_id": "ord_789"
+      }
+    }
+  }
+}
+```
+
+---
 
 ## Error Handling
 
@@ -783,7 +699,7 @@ Authorization: Bearer sk_live_abc123...
       "Split large orders into multiple invoices",
       "Contact support for higher limits"
     ],
-    "documentation_url": "https://docs.thecryptocheckout.com/errors#invalid-amount"
+    "documentation_url": "https://docs.cryptocheckout.com/errors#invalid-amount"
   },
   "request_id": "req_abc123",
   "trace_id": "trace_xyz789",
@@ -806,71 +722,11 @@ Authorization: Bearer sk_live_abc123...
 - `502` - Blockchain Network Error
 - `503` - Service Unavailable
 
-## Rate Limiting
+---
 
-### Merchant/Admin API Limits
-- **Merchant operations**: 100/hour per API key
-- **API key management**: 50/hour per API key
-- **Webhook management**: 100/hour per API key
-- **Invoice creation**: 1000/hour per API key
-- **Invoice/payment status checks**: 5000/hour per API key
-- **List operations**: 2000/hour per API key
-- **Analytics**: 500/hour per API key
+## Integration Examples
 
-### Customer API Limits
-- **Invoice views**: 60/minute per IP
-- **Real-time events**: 10 concurrent connections per invoice
-- **QR requests**: 100/minute per IP
-
-### Rate Limit Headers
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 950
-X-RateLimit-Reset: 1642694400
-X-RateLimit-Window: 3600
-X-RateLimit-Policy: sliding-window
-Retry-After: 60
-```
-
-## Security Features
-
-- **HMAC Webhook Signatures** - Verify webhook authenticity
-- **Idempotency Keys** - Prevent duplicate invoice creation
-- **IP Allowlisting** - Restrict webhook delivery to specific IPs
-- **Scoped API Keys** - Granular permission control
-- **Rate Limiting** - Protect against abuse
-- **HTTPS Everywhere** - All communication encrypted
-- **Audit Logging** - Complete activity tracking
-
-## Integration Flow Examples
-
-### Complete Merchant Onboarding Flow
-
-```mermaid
-sequenceDiagram
-    participant M as New Merchant
-    participant API as Crypto Checkout API
-    participant W as Webhook Endpoint
-    
-    M->>API: POST /api/v1/merchants (Create account)
-    API-->>M: Merchant created with initial API key
-    
-    M->>API: POST /api/v1/api-keys (Create production key)
-    API-->>M: Production API key
-    
-    M->>API: POST /api/v1/webhook-endpoints (Configure webhook)
-    API-->>M: Webhook endpoint created
-    
-    M->>API: POST /api/v1/webhook-endpoints/{id}/test
-    API->>W: Test webhook delivery
-    W-->>API: 200 OK
-    API-->>M: Test successful
-    
-    M->>API: POST /api/v1/invoices (Create first invoice)
-    API-->>M: Invoice created
-```
-
-### Payment Processing Flow
+### Complete Payment Flow
 
 ```mermaid
 sequenceDiagram
@@ -881,12 +737,12 @@ sequenceDiagram
     participant WH as Webhook
     
     M->>API: POST /api/v1/invoices
-    API-->>M: Invoice with customer_url
+    API-->>M: Invoice with customer_url and settlement_preview
     M->>C: Redirect to customer_url
     
     C->>W: GET /invoice/inv_abc123
     W->>API: GET /api/v1/public/invoice/inv_abc123
-    API-->>W: Invoice data
+    API-->>W: Invoice data (no fees shown)
     W-->>C: Payment page with QR code
     
     W->>API: SSE /api/v1/public/invoice/inv_abc123/events
@@ -896,8 +752,26 @@ sequenceDiagram
     API->>WH: POST webhook (payment.detected)
     
     API->>W: invoice.paid event
-    API->>WH: POST webhook (invoice.paid)
+    API->>WH: POST webhook (settlement.completed)
     W->>C: Redirect to return_url
 ```
 
-This comprehensive API provides full merchant lifecycle management, from account creation through payment processing, with enterprise-grade security and developer-friendly integration patterns.
+### Settlement Reconciliation Flow
+
+```mermaid
+sequenceDiagram
+    participant Payment as Payment Confirmed
+    participant Settlement as Settlement Service
+    participant Merchant as Merchant Webhook
+    participant Analytics as Analytics Service
+    
+    Payment->>Settlement: Create Settlement
+    Settlement->>Settlement: Calculate Platform Fee
+    Settlement->>Settlement: Calculate Net Amount
+    Settlement->>Merchant: settlement.completed webhook
+    Settlement->>Analytics: Update Revenue Metrics
+    
+    Note over Settlement: Gross: $16.49<br/>Fee: $0.16 (1%)<br/>Net: $16.33
+```
+
+This API specification provides complete payment processor functionality with transparent fee handling, near-real-time settlement processing, and comprehensive reporting capabilities while maintaining clean separation between customer and merchant experiences.

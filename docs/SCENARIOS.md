@@ -17,9 +17,6 @@
   - [Error \& Edge Case Scenarios](#error--edge-case-scenarios)
     - [10. Exchange Rate Expiration](#10-exchange-rate-expiration)
     - [11. Settlement Failure Cascade](#11-settlement-failure-cascade)
-  - [Summary](#summary)
-
----
 
 ## Merchant Scenarios
 
@@ -27,119 +24,78 @@
 
 **Scenario**: New VPN service provider registers for crypto payment processing
 
-**Steps:**
+**User Journey**:
 1. **Merchant visits platform** and clicks "Sign Up"
 2. **Fills registration form** with business details
 3. **System creates merchant account** with default 1% platform fee
 4. **Initial API key generated** automatically
 5. **Welcome email sent** with getting started guide
 
-**Domain Operations:**
-```go
-// 1. Create merchant account
-merchantService := NewMerchantOnboardingService()
-merchant, err := merchantService.CreateMerchant(CreateMerchantRequest{
-    BusinessName: "Acme VPN Services",
-    ContactEmail: "admin@acmevpn.com",
-    Settings: MerchantSettings{
-        DefaultCurrency:        "USD",
-        DefaultCryptoCurrency:  "USDT", 
-        InvoiceExpiryMinutes:   30,
-        PlatformFeePercentage:  decimal.NewFromFloat(1.0), // Default 1%
-        PaymentTolerance: PaymentTolerance{
-            UnderpaymentThreshold: decimal.NewFromFloat(0.01),
-            OverpaymentThreshold:  decimal.NewFromFloat(1.00),
-            OverpaymentAction:     "credit_account",
-        },
-    },
-})
+**Domain Operations**:
+- Create merchant account with default settings
+- Generate initial API key with invoice permissions
+- Send welcome notification with integration guide
+- Collect platform fee configuration (1% default)
 
-// 2. Generate initial API key
-apiKey, err := merchantService.GenerateInitialApiKey(merchant, []string{
-    "invoices:create", "invoices:read", "webhooks:manage",
-})
+**Events Emitted**:
+- `MerchantCreated` with merchant ID and settings
+- `ApiKeyGenerated` with key ID and permissions
+- `WelcomeNotificationSent` for onboarding tracking
 
-// 3. Send welcome notification
-result := merchantService.SendWelcomeNotification(merchant, apiKey)
+**Outcome**: Merchant ready to integrate with API key and documentation
 
-// Events emitted:
-// - MerchantCreated{MerchantID, Settings}
-// - ApiKeyGenerated{ApiKeyID, MerchantID, Permissions}
-```
+---
 
 ### 2. Adjust Platform Fee Rate
 
 **Scenario**: Platform admin negotiates custom fee rate with high-volume merchant
 
-**Steps:**
+**User Journey**:
 1. **Admin reviews merchant volume** (>$100k/month)
 2. **Negotiates reduced rate** from 1% to 0.7%
 3. **Updates merchant settings** in admin panel
 4. **Merchant receives notification** of new rate
 5. **New rate applies to future settlements**
 
-**Domain Operations:**
-```go
-// Update merchant platform fee
-merchantRepo := NewMerchantRepository()
-merchant, err := merchantRepo.FindByID(merchantID)
+**Domain Operations**:
+- Validate new fee rate within allowed range (0.1% - 5.0%)
+- Update merchant settings with custom fee percentage
+- Notify merchant of rate change
+- Apply new rate to all future settlements
 
-// Validate new fee rate (admin can set below 0.1% minimum)
-newSettings := merchant.Settings
-newSettings.PlatformFeePercentage = decimal.NewFromFloat(0.7) // Custom rate
+**Events Emitted**:
+- `SettingsUpdated` with merchant ID and new fee rate
+- `FeeRateNegotiated` for admin audit trail
+- `MerchantNotified` for communication tracking
 
-// Apply business rules validation
-if newSettings.PlatformFeePercentage.GreaterThan(decimal.NewFromFloat(5.0)) {
-    return ErrPlatformFeeTooHigh
-}
+**Outcome**: Merchant receives reduced fee rate, improving their profit margins
 
-// Update merchant
-merchant.UpdateSettings(newSettings)
-merchantRepo.Save(merchant)
-
-// Events emitted:
-// - SettingsUpdated{MerchantID, UpdatedSettings}
-```
+---
 
 ### 3. View Settlement Dashboard
 
 **Scenario**: Merchant checks earnings and fee breakdown
 
-**Steps:**
+**User Journey**:
 1. **Merchant logs into dashboard**
 2. **Views settlements page** with fee breakdown
 3. **Sees gross/fee/net amounts** for each payment
 4. **Downloads settlement report** for accounting
 5. **Reviews platform fee percentage**
 
-**Domain Operations:**
-```go
-// Get merchant settlements with fee breakdown
-settlementRepo := NewSettlementRepository()
-settlements, err := settlementRepo.FindByMerchant(merchantID, 
-    DateRange{Start: startDate, End: endDate})
+**Domain Operations**:
+- Retrieve settlement history for merchant
+- Calculate total gross amount, fees collected, net payouts
+- Generate fee breakdown showing platform commission
+- Provide downloadable reports for accounting
 
-// Each settlement shows:
-type SettlementSummary struct {
-    InvoiceID         string          `json:"invoice_id"`
-    GrossAmount       money.Money     `json:"gross_amount"`     // $9.99
-    PlatformFeeAmount money.Money     `json:"platform_fee"`    // $0.10
-    NetAmount         money.Money     `json:"net_amount"`      // $9.89
-    FeePercentage     decimal.Decimal `json:"fee_percentage"`  // 1.0%
-    SettledAt         time.Time       `json:"settled_at"`
-}
+**Data Displayed**:
+- Gross Amount: Total customer payments
+- Platform Fee: Amount deducted (1% default)
+- Net Amount: Actual merchant payout
+- Settlement success rate and timing metrics
 
-// Calculate totals for dashboard
-totalGross := decimal.Zero
-totalFees := decimal.Zero
-totalNet := decimal.Zero
-
-for _, settlement := range settlements {
-    totalGross = totalGross.Add(settlement.GrossAmount.Amount())
-    totalFees = totalFees.Add(settlement.PlatformFeeAmount.Amount())
-    totalNet = totalNet.Add(settlement.NetAmount.Amount())
-}
-```
+**Outcome**: Merchant has full transparency into fee structure and earnings
 
 ---
 
@@ -149,71 +105,46 @@ for _, settlement := range settlements {
 
 **Scenario**: Customer pays $9.99 for VPN subscription, settlement processed immediately
 
-**Steps:**
+**User Journey**:
 1. **Customer visits payment page** from merchant redirect
 2. **Scans QR code** and sends $9.99 USDT
 3. **Payment detected** on blockchain
 4. **Payment confirmed** after sufficient confirmations
 5. **Settlement created** automatically
 6. **Platform deducts 1% fee** ($0.10)
-7. **Merchant receives $9.89** immediately
+7. **Merchant receives $9.89** within 30 seconds
 8. **Customer redirected** to success page
 
-**Domain Operations:**
-```go
-// 1. Payment confirmation triggers settlement
-paymentService := NewPaymentService()
-settlementService := NewSettlementService()
+**Domain Operations**:
+- Payment confirmation triggers settlement creation
+- Calculate platform fee: $9.99 × 1% = $0.10
+- Calculate net amount: $9.99 - $0.10 = $9.89
+- Process real-time payout to merchant
+- Update invoice status to paid
 
-// When payment is confirmed
-payment := &Payment{
-    InvoiceID: invoiceID,
-    Amount:    money.New(999, "USDT"), // $9.99
-    Status:    PaymentStatusConfirmed,
-}
+**Settlement Calculation**:
+| Component        | Amount | Description            |
+| ---------------- | ------ | ---------------------- |
+| **Gross Amount** | $9.99  | Customer payment       |
+| **Platform Fee** | $0.10  | 1% platform commission |
+| **Net Amount**   | $9.89  | Merchant receives      |
 
-// Get invoice and merchant for settlement
-invoice, _ := invoiceRepo.FindByID(payment.InvoiceID)
-merchant, _ := merchantRepo.FindByID(invoice.MerchantID)
+**Events Emitted**:
+- `PaymentConfirmed` with payment details
+- `InvoicePaid` with total received
+- `SettlementCreated` with gross amount
+- `PlatformFeeCollected` with fee amount
+- `SettlementCompleted` with net payout
 
-// 2. Create settlement automatically
-settlement, err := settlementService.CreateSettlement(
-    invoice, payment, merchant)
+**Outcome**: Customer completes payment, merchant receives funds minus platform fee
 
-// Settlement calculation:
-// GrossAmount = $9.99 (customer payment)
-// PlatformFeeAmount = $9.99 × 1% = $0.10
-// NetAmount = $9.99 - $0.10 = $9.89
-
-type Settlement struct {
-    ID                SettlementID    
-    InvoiceID         InvoiceID       
-    MerchantID        MerchantID      
-    PaymentID         PaymentID       
-    GrossAmount       money.Money     // $9.99
-    PlatformFeeAmount money.Money     // $0.10 (1% of $9.99)
-    NetAmount         money.Money     // $9.89
-    FeePercentage     decimal.Decimal // 1.0% (from merchant settings)
-    Status            SettlementStatusCompleted
-    SettledAt         time.Time       // Real-time
-}
-
-// 3. Process real-time payout to merchant
-payoutResult, err := settlementService.ProcessPayout(settlement)
-
-// Events emitted:
-// - PaymentConfirmed{PaymentID, Amount}
-// - InvoicePaid{InvoiceID, TotalReceived}
-// - SettlementCreated{SettlementID, GrossAmount}
-// - PlatformFeeCollected{SettlementID, PlatformFeeAmount, FeeRate}
-// - SettlementCompleted{SettlementID, NetAmount, SettledAt}
-```
+---
 
 ### 5. Partial Payment Handling
 
 **Scenario**: Customer sends $5.00 instead of $9.99, then completes payment
 
-**Steps:**
+**User Journey**:
 1. **First payment detected** ($5.00 USDT)
 2. **Invoice status updated** to "partial"
 3. **Customer sees progress** (50% paid)
@@ -221,50 +152,38 @@ payoutResult, err := settlementService.ProcessPayout(settlement)
 5. **Total payment confirmed** ($9.99 total)
 6. **Settlement processed** for full amount
 
-**Domain Operations:**
-```go
-// 1. First partial payment
-payment1 := &Payment{
-    InvoiceID: invoiceID,
-    Amount:    money.New(500, "USDT"), // $5.00
-    Status:    PaymentStatusConfirmed,
-}
+**Domain Operations**:
+- First payment updates invoice to partial status
+- Track payment progress (received vs required)
+- Second payment completes the invoice
+- Create settlement for total received amount
+- Apply platform fee to full $9.99
 
-// Update invoice status
-invoice.Status = InvoiceStatusPartial
-invoice.UpdatePaymentProgress()
-
-// 2. Second payment completes the invoice
-payment2 := &Payment{
-    InvoiceID: invoiceID,
-    Amount:    money.New(499, "USDT"), // $4.99
-    Status:    PaymentStatusConfirmed,
-}
-
-// Check if invoice is now fully paid
-totalReceived := payment1.Amount.Add(payment2.Amount) // $9.99
-if totalReceived.GreaterThanOrEqual(invoice.Total) {
-    invoice.Status = InvoiceStatusPaid
-    invoice.PaidAt = time.Now()
+**Payment Timeline**:
+```mermaid
+gantt
+    title Payment Timeline
+    dateFormat  HH:mm
+    axisFormat %H:%M
     
-    // Create settlement for total amount
-    settlement := settlementService.CreateSettlement(
-        invoice, payment2, merchant) // Uses total received amount
+    section Payment 1
+    Payment detected    :10:00, 10:01
+    Confirmations       :10:01, 10:03
     
-    // Settlement calculation on full $9.99:
-    // GrossAmount = $9.99 (total received)
-    // PlatformFeeAmount = $0.10 (1% fee)
-    // NetAmount = $9.89 (merchant receives)
-}
-
-// Events emitted:
-// - PaymentDetected{PaymentID: payment1.ID, Amount: $5.00}
-// - InvoicePartiallyPaid{InvoiceID, PartialAmount: $5.00}
-// - PaymentDetected{PaymentID: payment2.ID, Amount: $4.99}  
-// - InvoicePaid{InvoiceID, TotalReceived: $9.99}
-// - SettlementCreated{SettlementID, GrossAmount: $9.99}
-// - SettlementCompleted{SettlementID, NetAmount: $9.89}
+    section Payment 2  
+    Payment detected    :10:15, 10:16
+    Confirmations       :10:16, 10:18
+    Settlement          :10:18, 10:19
 ```
+
+**Events Emitted**:
+- `PaymentDetected` for first $5.00 payment
+- `InvoicePartiallyPaid` with partial amount
+- `PaymentDetected` for second $4.99 payment
+- `InvoicePaid` with total $9.99 received
+- `SettlementCompleted` with $9.89 net amount
+
+**Outcome**: Customer can pay in multiple transactions, merchant still receives full amount minus platform fee
 
 ---
 
@@ -274,7 +193,7 @@ if totalReceived.GreaterThanOrEqual(invoice.Total) {
 
 **Scenario**: VPN service integrates payment processing into their checkout flow
 
-**Steps:**
+**User Journey**:
 1. **Customer completes VPN signup** on merchant site
 2. **Merchant backend calls API** to create invoice
 3. **Customer redirected** to payment page
@@ -282,122 +201,65 @@ if totalReceived.GreaterThanOrEqual(invoice.Total) {
 5. **Webhook delivered** to merchant
 6. **VPN account activated** automatically
 
-**Domain Operations:**
-```go
-// 1. Merchant creates invoice via API
-invoiceService := NewInvoiceService()
-exchangeRateService := NewExchangeRateService()
+**Integration Steps**:
+1. **Invoice Creation**: Merchant calls `POST /api/v1/invoices`
+2. **Exchange Rate Lock**: System locks USD/USDT rate for 30 minutes
+3. **Payment Address**: Generate unique Tron address for payment
+4. **Customer Redirect**: Send customer to payment page URL
+5. **Webhook Delivery**: Notify merchant when settlement completes
 
-// Lock exchange rate for 30 minutes
-exchangeRate, err := exchangeRateService.GetLockedRate(
-    "USD", "USDT", 30*time.Minute)
-
-// Create invoice
-createRequest := CreateInvoiceRequest{
-    MerchantID:  merchantID,
-    Title:       "VPN Premium Subscription",
-    Description: "Monthly VPN service with unlimited bandwidth",
-    Items: []InvoiceItem{
-        {
-            Name:        "VPN Premium Plan",
-            Description: "Monthly subscription",
-            Quantity:    1,
-            UnitPrice:   money.New(999, "USD"), // $9.99
-        },
-    },
-    Currency:         "USD",
-    CryptoCurrency:   "USDT",
-    ExchangeRate:     exchangeRate,
-    PaymentTolerance: merchant.Settings.PaymentTolerance,
-    ExpiresAt:        time.Now().Add(30 * time.Minute),
-    Metadata: map[string]string{
-        "customer_id": "cust_123",
-        "order_id":    "order_456",
-    },
-}
-
-invoice, err := invoiceService.CreateInvoice(createRequest)
-
-// 2. When payment confirmed, webhook delivered
-webhookService := NewWebhookDeliveryService()
-settlement, _ := settlementRepo.FindByInvoiceID(invoice.ID)
-
-webhookPayload := WebhookPayload{
-    Event: "invoice.paid",
-    Data: WebhookData{
-        InvoiceID:         invoice.ID,
-        Status:           "paid",
-        GrossAmount:       settlement.GrossAmount,      // $9.99
-        PlatformFeeAmount: settlement.PlatformFeeAmount, // $0.10
-        NetAmount:         settlement.NetAmount,        // $9.89
-        SettlementID:     settlement.ID,
-        Metadata:         invoice.Metadata,
-    },
-}
-
-// Deliver webhook to merchant
-deliveryResult := webhookService.DeliverWebhook(
-    merchant.WebhookEndpoints[0], webhookPayload)
-
-// Events emitted:
-// - InvoiceCreated{InvoiceID, MerchantID, Amount}
-// - WebhookDelivered{WebhookEndpointID, Event, Status}
+**API Flow**:
+```mermaid
+sequenceDiagram
+    participant Merchant as VPN Service
+    participant API as Crypto Checkout
+    participant Customer as Customer
+    participant Webhook as Merchant Webhook
+    
+    Merchant->>API: Create Invoice ($9.99)
+    API-->>Merchant: Invoice + Payment URL
+    Merchant->>Customer: Redirect to Payment
+    Customer->>API: Send $9.99 USDT
+    API->>Webhook: Settlement Complete ($9.89)
+    Webhook-->>Merchant: Activate VPN Account
 ```
+
+**Events Emitted**:
+- `InvoiceCreated` with merchant and amount details
+- `PaymentDetected` with blockchain transaction
+- `SettlementCompleted` with net payout
+- `WebhookDelivered` for integration tracking
+
+**Outcome**: Seamless integration allowing automatic account activation upon payment
+
+---
 
 ### 7. Settlement Reporting API
 
 **Scenario**: Merchant queries settlement data for accounting integration
 
-**Steps:**
+**User Journey**:
 1. **Accounting system calls API** monthly
 2. **Requests settlement data** with date range
 3. **Receives detailed breakdown** of all transactions
 4. **Processes fee information** for tax reporting
 5. **Reconciles payments** with gross/net amounts
 
-**Domain Operations:**
-```go
-// API endpoint: GET /api/v1/settlements
-type GetSettlementsRequest struct {
-    MerchantID string    `json:"merchant_id"`
-    StartDate  time.Time `json:"start_date"`
-    EndDate    time.Time `json:"end_date"`
-    Limit      int       `json:"limit"`
-    Cursor     string    `json:"cursor"`
-}
+**API Endpoints Used**:
+- `GET /api/v1/settlements` - List settlements with filters
+- `GET /api/v1/analytics` - Aggregate metrics and summaries
+- Response includes complete fee breakdown for accounting
 
-type SettlementResponse struct {
-    Settlements []SettlementDetail `json:"settlements"`
-    Summary     SettlementSummary  `json:"summary"`
-    Pagination  PaginationInfo     `json:"pagination"`
-}
+**Settlement Report Structure**:
+| Field                   | Value     | Purpose                      |
+| ----------------------- | --------- | ---------------------------- |
+| **Total Gross Volume**  | $2,500.00 | Customer payments received   |
+| **Total Platform Fees** | $25.00    | Platform commission (1%)     |
+| **Total Net Payouts**   | $2,475.00 | Actual merchant earnings     |
+| **Transaction Count**   | 250       | Number of completed payments |
+| **Average Fee Rate**    | 1.0%      | Effective commission rate    |
 
-type SettlementDetail struct {
-    ID                string          `json:"id"`
-    InvoiceID         string          `json:"invoice_id"`
-    GrossAmount       money.Money     `json:"gross_amount"`
-    PlatformFeeAmount money.Money     `json:"platform_fee_amount"`
-    NetAmount         money.Money     `json:"net_amount"`
-    FeePercentage     decimal.Decimal `json:"fee_percentage"`
-    Currency          string          `json:"currency"`
-    SettledAt         time.Time       `json:"settled_at"`
-    Metadata          map[string]string `json:"metadata"`
-}
-
-// Calculate summary for accounting
-type SettlementSummary struct {
-    TotalGrossAmount       money.Money     `json:"total_gross_amount"`     // $2,500.00
-    TotalPlatformFees      money.Money     `json:"total_platform_fees"`   // $25.00 (1%)
-    TotalNetAmount         money.Money     `json:"total_net_amount"`       // $2,475.00
-    AverageFeePercentage   decimal.Decimal `json:"average_fee_percentage"` // 1.0%
-    TransactionCount       int             `json:"transaction_count"`      // 250
-}
-
-// Repository query
-settlementRepo := NewSettlementRepository()
-settlements, err := settlementRepo.FindByMerchantAndDateRange(
-    request.MerchantID, request.StartDate, request.EndDate)
-```
+**Outcome**: Merchant has detailed financial data for tax reporting and accounting
 
 ---
 
@@ -407,89 +269,64 @@ settlements, err := settlementRepo.FindByMerchantAndDateRange(
 
 **Scenario**: Platform admin monitors revenue and merchant performance
 
-**Steps:**
+**User Journey**:
 1. **Admin accesses analytics** dashboard
 2. **Views platform fee collection** by time period
 3. **Analyzes merchant volume** and fee rates
 4. **Identifies high-volume merchants** for rate negotiation
 5. **Tracks settlement success rates**
 
-**Domain Operations:**
-```go
-// Platform revenue analytics
-type PlatformAnalytics struct {
-    Period                 TimePeriod      `json:"period"`
-    TotalGrossVolume       money.Money     `json:"total_gross_volume"`     // $1M
-    TotalPlatformRevenue   money.Money     `json:"total_platform_revenue"` // $10K (1%)
-    TotalMerchantPayouts   money.Money     `json:"total_merchant_payouts"` // $990K
-    AverageFeeRate         decimal.Decimal `json:"average_fee_rate"`       // 1.0%
-    TransactionCount       int             `json:"transaction_count"`      // 100,000
-    ActiveMerchants        int             `json:"active_merchants"`       // 1,250
-    SettlementSuccessRate  decimal.Decimal `json:"settlement_success_rate"` // 99.8%
-}
+**Analytics Metrics**:
+| Metric                      | Value      | Insight                   |
+| --------------------------- | ---------- | ------------------------- |
+| **Total Platform Revenue**  | $10,000    | Monthly fee collection    |
+| **Total Merchant Volume**   | $1,000,000 | Gross payment volume      |
+| **Average Fee Rate**        | 1.0%       | Effective commission rate |
+| **Settlement Success Rate** | 99.8%      | System reliability        |
+| **Active Merchants**        | 1,250      | Platform growth           |
 
-// High-volume merchant analysis
-type MerchantVolumeReport struct {
-    MerchantID            string          `json:"merchant_id"`
-    BusinessName          string          `json:"business_name"`
-    MonthlyGrossVolume    money.Money     `json:"monthly_gross_volume"`    // $150K
-    MonthlyPlatformRevenue money.Money    `json:"monthly_platform_revenue"` // $1.5K
-    CurrentFeeRate        decimal.Decimal `json:"current_fee_rate"`        // 1.0%
-    SuggestedFeeRate      decimal.Decimal `json:"suggested_fee_rate"`      // 0.8%
-    TransactionCount      int             `json:"transaction_count"`       // 15,000
-}
+**High-Volume Merchant Analysis**:
+- Merchants with >$100k monthly volume
+- Current fee rates vs suggested rates
+- Revenue impact of rate negotiations
+- Growth opportunities and retention
 
-// Query high-volume merchants for rate negotiation
-analyticsService := NewAnalyticsService()
-highVolumeReport, err := analyticsService.GetHighVolumeMerchants(
-    MinMonthlyVolume: money.New(100000, "USD"), // $100K+
-    Period: LastMonth,
-)
-```
+**Outcome**: Platform admin can optimize fee structures and identify growth opportunities
+
+---
 
 ### 9. Failed Settlement Recovery
 
 **Scenario**: Admin handles failed settlement and retry processing
 
-**Steps:**
+**User Journey**:
 1. **Settlement fails** due to wallet issue
 2. **Alert sent** to operations team
 3. **Admin investigates** payout failure
 4. **Updates merchant wallet** address
 5. **Retries settlement** manually
 
-**Domain Operations:**
-```go
-// Handle failed settlement
-settlementService := NewSettlementService()
-settlement, err := settlementRepo.FindByID(settlementID)
+**Failure Scenarios**:
+| Failure Type             | Cause                  | Resolution               |
+| ------------------------ | ---------------------- | ------------------------ |
+| **Insufficient Balance** | Platform wallet empty  | Refill hot wallet        |
+| **Invalid Address**      | Merchant address error | Update merchant settings |
+| **Network Congestion**   | Blockchain overload    | Retry with higher fee    |
+| **Technical Error**      | System malfunction     | Manual intervention      |
 
-if settlement.Status == SettlementStatusFailed {
-    // Update merchant payout details
-    merchant, _ := merchantRepo.FindByID(settlement.MerchantID)
-    merchant.UpdatePayoutAddress(newWalletAddress)
-    merchantRepo.Save(merchant)
-    
-    // Retry settlement with updated details
-    retryResult, err := settlementService.RetryFailedPayout(settlement)
-    
-    if retryResult.Success {
-        settlement.Status = SettlementStatusCompleted
-        settlement.SettledAt = time.Now()
-        settlementRepo.Save(settlement)
-        
-        // Events emitted:
-        // - SettlementCompleted{SettlementID, NetAmount, SettledAt}
-    } else {
-        // Log failure and alert operations
-        settlement.Status = SettlementStatusFailed
-        settlement.FailureReason = retryResult.Error
-        
-        // Events emitted:
-        // - SettlementFailed{SettlementID, FailureReason}
-    }
-}
-```
+**Recovery Process**:
+1. **Identify Root Cause**: Analyze failure reason
+2. **Resolve Issue**: Fix underlying problem
+3. **Retry Settlement**: Process failed payouts
+4. **Verify Success**: Confirm merchant received funds
+5. **Update Status**: Mark settlement as completed
+
+**Events Emitted**:
+- `SettlementFailed` with failure reason
+- `SettlementRetried` for tracking attempts
+- `SettlementCompleted` upon successful recovery
+
+**Outcome**: Failed settlements recovered, merchants receive their payouts
 
 ---
 
@@ -499,130 +336,82 @@ if settlement.Status == SettlementStatusFailed {
 
 **Scenario**: Exchange rate expires during payment process
 
-**Steps:**
+**User Journey**:
 1. **Invoice created** with 30-minute rate lock
 2. **Customer delays payment** beyond expiry
 3. **Rate expires** while payment in transit
 4. **System detects expired rate**
 5. **Payment processed** with tolerance check
 
-**Domain Operations:**
-```go
-// Check exchange rate validity during payment processing
-exchangeRateService := NewExchangeRateService()
-payment := &Payment{
-    InvoiceID: invoiceID,
-    Amount:    money.New(999, "USDT"),
-}
+**Rate Expiration Handling**:
+- Check current USD/USDT rate against locked rate
+- Apply payment tolerance thresholds (±1% default)
+- Accept payment if within tolerance range
+- Handle overpayment according to merchant settings
 
-invoice, _ := invoiceRepo.FindByID(payment.InvoiceID)
+**Tolerance Calculation**:
+| Scenario           | Expected | Received | Action                     |
+| ------------------ | -------- | -------- | -------------------------- |
+| **Rate Increased** | $9.99    | $10.50   | Accept (within tolerance)  |
+| **Rate Decreased** | $9.99    | $9.50    | Accept (within tolerance)  |
+| **Major Change**   | $9.99    | $12.00   | Requires merchant approval |
 
-// Validate exchange rate hasn't expired
-if !exchangeRateService.ValidateRate(invoice.ExchangeRate) {
-    // Rate expired - calculate with current rate and tolerance
-    currentRate, _ := exchangeRateService.GetCurrentRate("USD", "USDT")
-    
-    expectedAmount := exchangeRateService.ConvertAmount(
-        invoice.Total, currentRate)
-    
-    tolerance := invoice.PaymentTolerance
-    minAcceptable := expectedAmount.Subtract(tolerance.UnderpaymentThreshold)
-    maxAcceptable := expectedAmount.Add(tolerance.OverpaymentThreshold)
-    
-    if payment.Amount.LessThan(minAcceptable) {
-        return ErrUnderpayment
-    }
-    
-    if payment.Amount.GreaterThan(maxAcceptable) {
-        // Handle overpayment based on policy
-        reconciliationService := NewPaymentReconciliationService()
-        result := reconciliationService.HandleOverpayment(
-            payment.Amount.Subtract(expectedAmount),
-            tolerance.OverpaymentAction)
-    }
-}
+**Events Emitted**:
+- `ExchangeRateExpired` with old and new rates
+- `PaymentReconciled` with tolerance application
+- `OverpaymentHandled` if customer sent excess
 
-// Events emitted:
-// - ExchangeRateExpired{InvoiceID, ExpiredRate, CurrentRate}
-// - PaymentReconciled{PaymentID, ExpectedAmount, ActualAmount}
-```
+**Outcome**: Payment processed despite rate changes, with appropriate tolerance handling
+
+---
 
 ### 11. Settlement Failure Cascade
 
 **Scenario**: Multiple settlements fail due to platform wallet issue
 
-**Steps:**
+**User Journey**:
 1. **Platform hot wallet** runs out of funds
 2. **Multiple settlements fail** simultaneously
 3. **Monitoring alerts** operations team
 4. **Hot wallet refilled** from cold storage
 5. **Failed settlements retried** in batch
 
-**Domain Operations:**
-```go
-// Batch retry failed settlements
-type FailedSettlementBatch struct {
-    FailedSettlements []Settlement
-    TotalAmount       money.Money
-    FailureReason     string
-    RetryAttempts     int
-}
+**Cascade Impact**:
+- 50+ settlements fail within 10 minutes
+- Total value: $50,000 in merchant payouts
+- Immediate alert to operations team
+- Automatic retry queue management
 
-// Query all failed settlements
-failedSettlements, err := settlementRepo.FindByStatus(
-    SettlementStatusFailed)
-
-// Group by failure reason
-hotWalletFailures := filterByFailureReason(failedSettlements, 
-    "insufficient_wallet_balance")
-
-// After hot wallet refill, retry batch
-batchRetryService := NewBatchRetryService()
-for _, settlement := range hotWalletFailures {
-    retryResult := settlementService.RetryFailedPayout(settlement)
+**Recovery Timeline**:
+```mermaid
+gantt
+    title Settlement Recovery Timeline
+    dateFormat  HH:mm
+    axisFormat %H:%M
     
-    if retryResult.Success {
-        settlement.Status = SettlementStatusCompleted
-        settlement.SettledAt = time.Now()
-        
-        // Events emitted:
-        // - SettlementCompleted{SettlementID, NetAmount}
-    } else {
-        settlement.RetryAttempts++
-        if settlement.RetryAttempts >= MaxRetryAttempts {
-            // Escalate to manual review
-            // Events emitted:
-            // - SettlementRequiresManualReview{SettlementID}
-        }
-    }
-}
-
-// Events emitted:
-// - BatchSettlementRetryCompleted{BatchID, SuccessCount, FailureCount}
+    section Failure
+    Settlements fail    :09:00, 09:10
+    Alerts triggered    :09:10, 09:15
+    
+    section Recovery
+    Investigation       :09:15, 09:30
+    Wallet refill       :09:30, 09:45
+    Batch retry         :09:45, 10:00
+    Verification        :10:00, 10:15
 ```
 
+**Batch Recovery Process**:
+1. **Identify Failed Settlements**: Query all failed status
+2. **Group by Failure Type**: Wallet vs network vs other
+3. **Resolve Root Cause**: Refill wallet, fix network
+4. **Batch Retry**: Process all failed settlements
+5. **Monitor Success**: Verify all payouts completed
+
+**Events Emitted**:
+- `BatchSettlementFailure` with failure count
+- `PlatformWalletRefilled` for operations tracking
+- `BatchSettlementRetryCompleted` with success/failure counts
+
+**Outcome**: All failed settlements recovered, merchants receive delayed but complete payouts
+
 ---
-
-## Summary
-
-This comprehensive set of user scenarios demonstrates how the Crypto Checkout platform operates as a payment processor, with automatic fee deduction and real-time settlement. Key characteristics:
-
-**Payment Processor Model:**
-- Platform automatically deducts configurable fees (default 1%)
-- Real-time settlement to merchants
-- Transparent fee breakdown in merchant dashboards
-- Proper revenue tracking for platform operations
-
-**Domain Operation Patterns:**
-- Event-driven architecture with comprehensive audit trails
-- Settlement aggregate manages fee calculation and payouts
-- Real-time processing with robust error handling
-- Merchant-specific fee configuration and reporting
-
-**Business Logic Enforcement:**
-- Platform fee validation (0.1% - 5.0% range)
-- Real-time settlement processing
-- Automatic fee calculation and deduction
-- Comprehensive settlement reporting and analytics
-
-The scenarios cover the complete lifecycle from merchant onboarding through payment processing, settlement, and revenue analytics, demonstrating how the domain model supports a robust payment processor platform.
