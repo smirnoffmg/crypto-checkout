@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,9 +14,6 @@ import (
 	"github.com/yeqown/go-qrcode/v2"
 	"github.com/yeqown/go-qrcode/writer/standard"
 	"go.uber.org/zap"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/shared"
 )
 
 // invoiceItemWrapper implements shared.InvoiceItem interface for DTO conversion
@@ -38,7 +37,7 @@ const (
 	taxRateDecimals = 2
 )
 
-// createInvoice handles POST /api/v1/invoices requests.
+// CreateInvoice handles POST /api/v1/invoices requests.
 // @Summary Create a new invoice
 // @Description Create a new invoice for cryptocurrency payment processing
 // @Tags Invoices
@@ -87,7 +86,7 @@ func (h *Handler) CreateInvoice(c *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceService.CreateInvoice(c.Request.Context(), &serviceReq)
+	inv, err := h.invoiceService.CreateInvoice(c.Request.Context(), &serviceReq)
 	if err != nil {
 		h.Logger.Error("Failed to create invoice", zap.Error(err))
 		h.Logger.Debug("Adding error to context", zap.Error(err))
@@ -98,106 +97,34 @@ func (h *Handler) CreateInvoice(c *gin.Context) {
 		return
 	}
 
-	response := ToCreateInvoiceResponse(invoice)
+	response := ToCreateInvoiceResponse(inv)
 
 	// Generate the invoice URL for the user
-	response.InvoiceURL = "/api/v1/invoices/" + string(invoice.ID())
+	response.InvoiceURL = "/api/v1/invoices/" + string(inv.ID())
 
 	c.JSON(http.StatusCreated, response)
 }
 
 // convertToServiceCreateInvoiceRequest converts API request to service request.
 func convertToServiceCreateInvoiceRequest(req CreateInvoiceRequest) (invoice.CreateInvoiceRequest, error) {
-	items := make([]*invoice.CreateInvoiceItemRequest, len(req.Items))
-	for i, item := range req.Items {
-		// Parse unit price string to Money
-		unitPrice, err := shared.NewMoney(item.UnitPrice, shared.CurrencyUSD)
-		if err != nil {
-			return invoice.CreateInvoiceRequest{}, invoice.ErrInvalidUnitPrice
-		}
-
-		items[i] = &invoice.CreateInvoiceItemRequest{
-			Name:        item.Name,
-			Description: item.Description,
-			Quantity:    item.Quantity,
-			UnitPrice:   unitPrice,
-		}
-	}
-
-	// Calculate subtotal and tax using shared tax calculator
-	taxCalculator := shared.NewTaxCalculator()
-
-	// Convert DTO items to shared InvoiceItem interface
-	invoiceItems := make([]shared.InvoiceItem, len(items))
-	for i, item := range items {
-		quantity, err := decimal.NewFromString(item.Quantity)
-		if err != nil {
-			quantity = decimal.Zero
-		}
-		totalPrice, err := item.UnitPrice.Multiply(quantity)
-		if err != nil {
-			return invoice.CreateInvoiceRequest{}, err
-		}
-
-		invoiceItems[i] = &invoiceItemWrapper{
-			unitPrice:  item.UnitPrice,
-			totalPrice: totalPrice,
-		}
-	}
-
-	// Calculate subtotal
-	subtotalMoney, err := taxCalculator.CalculateSubtotal(invoiceItems)
+	items, err := convertInvoiceItems(req.Items)
 	if err != nil {
 		return invoice.CreateInvoiceRequest{}, err
 	}
 
-	// Calculate tax amount
-	taxAmount, err := taxCalculator.CalculateTaxFromRate(req.TaxRate, subtotalMoney)
+	taxAmount, err := calculateTaxAmount(req, items)
 	if err != nil {
 		return invoice.CreateInvoiceRequest{}, err
 	}
 
-	// Parse currency
-	currency := shared.CurrencyUSD
-	if req.Currency != "" {
-		currency = shared.Currency(req.Currency)
+	currency := parseCurrency(req.Currency)
+	cryptoCurrency := parseCryptoCurrency(req.CryptoCurrency)
+	paymentTolerance, err := parsePaymentTolerance(req.PaymentTolerance)
+	if err != nil {
+		return invoice.CreateInvoiceRequest{}, err
 	}
 
-	// Parse crypto currency
-	cryptoCurrency := shared.CryptoCurrencyUSDT
-	if req.CryptoCurrency != "" {
-		cryptoCurrency = shared.CryptoCurrency(req.CryptoCurrency)
-	}
-
-	// Parse payment tolerance
-	var paymentTolerance *invoice.PaymentTolerance
-	if req.PaymentTolerance != nil {
-		overpaymentAction := invoice.OverpaymentActionCredit
-		switch req.PaymentTolerance.OverpaymentAction {
-		case "credit_account":
-			overpaymentAction = invoice.OverpaymentActionCredit
-		case "refund":
-			overpaymentAction = invoice.OverpaymentActionRefund
-		case "donate":
-			overpaymentAction = invoice.OverpaymentActionDonate
-		}
-
-		var err error
-		paymentTolerance, err = invoice.NewPaymentTolerance(
-			req.PaymentTolerance.UnderpaymentThreshold,
-			req.PaymentTolerance.OverpaymentThreshold,
-			overpaymentAction,
-		)
-		if err != nil {
-			return invoice.CreateInvoiceRequest{}, fmt.Errorf("invalid payment tolerance: %w", err)
-		}
-	}
-
-	// Parse expiration duration
-	expirationDuration := 30 * time.Minute // Default 30 minutes
-	if req.ExpiresIn != nil {
-		expirationDuration = time.Duration(*req.ExpiresIn) * time.Second
-	}
+	expirationDuration := parseExpirationDuration(req.ExpiresIn)
 
 	return invoice.CreateInvoiceRequest{
 		MerchantID:         "test-merchant", // TODO: Get from authentication context
@@ -215,6 +142,110 @@ func convertToServiceCreateInvoiceRequest(req CreateInvoiceRequest) (invoice.Cre
 		ReturnURL:          req.ReturnURL,
 		CancelURL:          req.CancelURL,
 	}, nil
+}
+
+// convertInvoiceItems converts DTO items to service items.
+func convertInvoiceItems(dtoItems []InvoiceItemRequest) ([]*invoice.CreateInvoiceItemRequest, error) {
+	items := make([]*invoice.CreateInvoiceItemRequest, len(dtoItems))
+	for i, item := range dtoItems {
+		unitPrice, err := shared.NewMoney(item.UnitPrice, shared.CurrencyUSD)
+		if err != nil {
+			return nil, invoice.ErrInvalidUnitPrice
+		}
+
+		items[i] = &invoice.CreateInvoiceItemRequest{
+			Name:        item.Name,
+			Description: item.Description,
+			Quantity:    item.Quantity,
+			UnitPrice:   unitPrice,
+		}
+	}
+	return items, nil
+}
+
+// calculateTaxAmount calculates tax amount using tax calculator.
+func calculateTaxAmount(req CreateInvoiceRequest, items []*invoice.CreateInvoiceItemRequest) (*shared.Money, error) {
+	taxCalculator := shared.NewTaxCalculator()
+
+	// Convert DTO items to shared InvoiceItem interface
+	invoiceItems := make([]shared.InvoiceItem, len(items))
+	for i, item := range items {
+		quantity, err := decimal.NewFromString(item.Quantity)
+		if err != nil {
+			quantity = decimal.Zero
+		}
+		totalPrice, err := item.UnitPrice.Multiply(quantity)
+		if err != nil {
+			return nil, err
+		}
+
+		invoiceItems[i] = &invoiceItemWrapper{
+			unitPrice:  item.UnitPrice,
+			totalPrice: totalPrice,
+		}
+	}
+
+	// Calculate subtotal
+	subtotalMoney, err := taxCalculator.CalculateSubtotal(invoiceItems)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate tax amount
+	return taxCalculator.CalculateTaxFromRate(req.TaxRate, subtotalMoney)
+}
+
+// parseCurrency parses currency from string.
+func parseCurrency(currencyStr string) shared.Currency {
+	if currencyStr != "" {
+		return shared.Currency(currencyStr)
+	}
+	return shared.CurrencyUSD
+}
+
+// parseCryptoCurrency parses crypto currency from string.
+func parseCryptoCurrency(cryptoCurrencyStr string) shared.CryptoCurrency {
+	if cryptoCurrencyStr != "" {
+		return shared.CryptoCurrency(cryptoCurrencyStr)
+	}
+	return shared.CryptoCurrencyUSDT
+}
+
+// parsePaymentTolerance parses payment tolerance from DTO.
+func parsePaymentTolerance(dtoTolerance *PaymentToleranceRequest) (*invoice.PaymentTolerance, error) {
+	if dtoTolerance == nil {
+		return nil, nil
+	}
+
+	overpaymentAction := parseOverpaymentAction(dtoTolerance.OverpaymentAction)
+
+	return invoice.NewPaymentTolerance(
+		dtoTolerance.UnderpaymentThreshold,
+		dtoTolerance.OverpaymentThreshold,
+		overpaymentAction,
+	)
+}
+
+// parseOverpaymentAction parses overpayment action from string.
+func parseOverpaymentAction(action string) invoice.OverpaymentAction {
+	switch action {
+	case "credit_account":
+		return invoice.OverpaymentActionCredit
+	case "refund":
+		return invoice.OverpaymentActionRefund
+	case "donate":
+		return invoice.OverpaymentActionDonate
+	default:
+		return invoice.OverpaymentActionCredit
+	}
+}
+
+// parseExpirationDuration parses expiration duration from seconds.
+func parseExpirationDuration(expiresIn *int) time.Duration {
+	if expiresIn != nil {
+		return time.Duration(*expiresIn) * time.Second
+	}
+	return 30 * time.Minute // Default 30 minutes
 }
 
 // validateCreateInvoiceRequest performs additional validation on the request.
@@ -237,7 +268,7 @@ func validateCreateInvoiceRequest(req CreateInvoiceRequest) error {
 	return nil
 }
 
-// getInvoice handles GET /api/v1/invoices/:id requests.
+// GetInvoice handles GET /api/v1/invoices/:id requests.
 // @Summary Get invoice details
 // @Description Retrieve detailed information about a specific invoice
 // @Tags Invoices
@@ -260,7 +291,7 @@ func (h *Handler) GetInvoice(c *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
+	inv, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice", zap.Error(err), zap.String("invoice_id", id))
 		if err := c.Error(err); err != nil {
@@ -270,7 +301,7 @@ func (h *Handler) GetInvoice(c *gin.Context) {
 	}
 
 	// Convert invoice to DTO for JSON response
-	response := ToCreateInvoiceResponse(invoice)
+	response := ToCreateInvoiceResponse(inv)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -334,7 +365,7 @@ func (h *Handler) getInvoiceQR(c *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
+	inv, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice for QR code", zap.Error(err), zap.String("invoice_id", id))
 		if err := c.Error(err); err != nil {
@@ -344,7 +375,7 @@ func (h *Handler) getInvoiceQR(c *gin.Context) {
 	}
 
 	// Generate QR code content - Tron USDT payment URI
-	paymentAddress := invoice.PaymentAddress()
+	paymentAddress := inv.PaymentAddress()
 	if paymentAddress == nil {
 		if err := c.Error(errors.New("invoice has no payment address assigned")); err != nil {
 			h.Logger.Error("Failed to set error in context", zap.Error(err))
@@ -355,7 +386,7 @@ func (h *Handler) getInvoiceQR(c *gin.Context) {
 	// Create Tron USDT payment URI
 	qrContent := fmt.Sprintf("tron:%s?amount=%s&token=USDT",
 		paymentAddress.String(),
-		invoice.Pricing().Total().Amount().String())
+		inv.Pricing().Total().Amount().String())
 
 	// Generate QR code image
 	imageData, err := h.GenerateQRCodeImage(qrContent)
@@ -385,7 +416,7 @@ func (h *Handler) getPublicInvoice(c *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
+	inv, err := h.invoiceService.GetInvoice(c.Request.Context(), id)
 	if err != nil {
 		h.Logger.Error("Failed to get invoice", zap.Error(err), zap.String("invoice_id", id))
 		if err := c.Error(err); err != nil {
@@ -402,14 +433,14 @@ func (h *Handler) getPublicInvoice(c *gin.Context) {
 
 	// Prepare template data with real invoice data
 	templateData := gin.H{
-		"Invoice":        invoice,
-		"Title":          "Invoice #" + invoice.ID(),
-		"QRCodeURL":      fmt.Sprintf("/invoices/%s/qr", invoice.ID()),
-		"PaymentAddress": invoice.PaymentAddress(),
-		"TotalAmount":    invoice.Pricing().Total().Amount().String(),
-		"SubtotalAmount": invoice.Pricing().Subtotal().Amount().String(),
-		"TaxAmount":      invoice.Pricing().Tax().Amount().String(),
-		"TaxRate":        invoice.Pricing().Tax().Amount().String(),
+		"Invoice":        inv,
+		"Title":          "Invoice #" + inv.ID(),
+		"QRCodeURL":      fmt.Sprintf("/invoices/%s/qr", inv.ID()),
+		"PaymentAddress": inv.PaymentAddress(),
+		"TotalAmount":    inv.Pricing().Total().Amount().String(),
+		"SubtotalAmount": inv.Pricing().Subtotal().Amount().String(),
+		"TaxAmount":      inv.Pricing().Tax().Amount().String(),
+		"TaxRate":        inv.Pricing().Tax().Amount().String(),
 	}
 
 	// Use Gin's HTML rendering

@@ -1,11 +1,10 @@
 package invoice_test
 
 import (
-	"testing"
-	"time"
-
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/shared"
+	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )

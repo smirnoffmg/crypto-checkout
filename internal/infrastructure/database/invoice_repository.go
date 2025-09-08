@@ -2,13 +2,12 @@ package database
 
 import (
 	"context"
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/shared"
 
 	"gorm.io/gorm"
 )
@@ -90,7 +89,6 @@ func (r *InvoiceRepository) FindByID(ctx context.Context, id string) (*invoice.I
 	err := r.db.WithContext(ctx).
 		Where("id = ?", id).
 		First(&model).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, shared.ErrNotFound
@@ -114,7 +112,6 @@ func (r *InvoiceRepository) FindByPaymentAddress(
 	err := r.db.WithContext(ctx).
 		Where("payment_address = ?", address.String()).
 		First(&model).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, shared.ErrNotFound
@@ -134,7 +131,6 @@ func (r *InvoiceRepository) FindByStatus(
 	err := r.db.WithContext(ctx).
 		Where("status = ?", status.String()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find invoices by status: %w", err)
 	}
@@ -155,7 +151,6 @@ func (r *InvoiceRepository) FindActive(ctx context.Context) ([]*invoice.Invoice,
 	err := r.db.WithContext(ctx).
 		Where("status IN ?", activeStatuses).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find active invoices: %w", err)
 	}
@@ -177,7 +172,6 @@ func (r *InvoiceRepository) FindExpired(ctx context.Context) ([]*invoice.Invoice
 	err := r.db.WithContext(ctx).
 		Where("status IN ? AND expires_at < ?", activeStatuses, time.Now().UTC()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find expired invoices: %w", err)
 	}
@@ -237,7 +231,6 @@ func (r *InvoiceRepository) Exists(ctx context.Context, id string) (bool, error)
 		Model(&InvoiceModel{}).
 		Where("id = ?", id).
 		Count(&count).Error
-
 	if err != nil {
 		return false, fmt.Errorf("failed to check invoice existence: %w", err)
 	}

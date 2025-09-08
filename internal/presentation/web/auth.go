@@ -17,7 +17,14 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			logger.Debug("Missing Authorization header")
-			c.JSON(http.StatusUnauthorized, createAuthErrorResponse("authentication_error", "MISSING_AUTH_HEADER", "Authorization header is required"))
+			c.JSON(
+				http.StatusUnauthorized,
+				createAuthErrorResponse(
+					"authentication_error",
+					"MISSING_AUTH_HEADER",
+					"Authorization header is required",
+				),
+			)
 			c.Abort()
 			return
 		}
@@ -25,7 +32,14 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		// Check if it's a Bearer token
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			logger.Debug("Invalid Authorization header format", zap.String("header", authHeader))
-			c.JSON(http.StatusUnauthorized, createAuthErrorResponse("authentication_error", "INVALID_AUTH_FORMAT", "Authorization header must be 'Bearer <token>'"))
+			c.JSON(
+				http.StatusUnauthorized,
+				createAuthErrorResponse(
+					"authentication_error",
+					"INVALID_AUTH_FORMAT",
+					"Authorization header must be 'Bearer <token>'",
+				),
+			)
 			c.Abort()
 			return
 		}
@@ -34,7 +48,10 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 		if token == "" {
 			logger.Debug("Empty token in Authorization header")
-			c.JSON(http.StatusUnauthorized, createAuthErrorResponse("authentication_error", "EMPTY_TOKEN", "Token cannot be empty"))
+			c.JSON(
+				http.StatusUnauthorized,
+				createAuthErrorResponse("authentication_error", "EMPTY_TOKEN", "Token cannot be empty"),
+			)
 			c.Abort()
 			return
 		}
@@ -42,7 +59,10 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		// Validate token format (API.md specifies sk_live_* or sk_test_*)
 		if !isValidAPIToken(token) {
 			logger.Debug("Invalid API token format", zap.String("token", maskToken(token)))
-			c.JSON(http.StatusUnauthorized, createAuthErrorResponse("authentication_error", "INVALID_TOKEN", "Invalid API key format"))
+			c.JSON(
+				http.StatusUnauthorized,
+				createAuthErrorResponse("authentication_error", "INVALID_TOKEN", "Invalid API key format"),
+			)
 			c.Abort()
 			return
 		}
@@ -136,7 +156,10 @@ func (h *Handler) generateAuthToken(c *gin.Context) {
 	// Validate API key format
 	if !isValidAPIToken(req.APIKey) {
 		h.Logger.Debug("Invalid API key format", zap.String("token", maskToken(req.APIKey)))
-		c.JSON(http.StatusUnauthorized, createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid API key format"))
+		c.JSON(
+			http.StatusUnauthorized,
+			createAuthErrorResponse("authentication_error", "INVALID_API_KEY", "Invalid API key format"),
+		)
 		return
 	}
 
@@ -148,7 +171,10 @@ func (h *Handler) generateAuthToken(c *gin.Context) {
 
 	// Validate expires_in
 	if req.ExpiresIn <= 0 || req.ExpiresIn > 86400 { // Max 24 hours
-		c.JSON(http.StatusBadRequest, createValidationErrorResponse("expires_in must be between 1 and 86400 seconds", nil))
+		c.JSON(
+			http.StatusBadRequest,
+			createValidationErrorResponse("expires_in must be between 1 and 86400 seconds", nil),
+		)
 		return
 	}
 
@@ -159,7 +185,14 @@ func (h *Handler) generateAuthToken(c *gin.Context) {
 	token, err := h.generateJWTToken(req.APIKey, req.Scope, req.ExpiresIn)
 	if err != nil {
 		h.Logger.Error("Failed to generate JWT token", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, createAuthErrorResponse("token_generation_error", "TOKEN_GENERATION_FAILED", "Failed to generate access token"))
+		c.JSON(
+			http.StatusInternalServerError,
+			createAuthErrorResponse(
+				"token_generation_error",
+				"TOKEN_GENERATION_FAILED",
+				"Failed to generate access token",
+			),
+		)
 		return
 	}
 

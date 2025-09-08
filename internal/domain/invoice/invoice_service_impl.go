@@ -2,11 +2,10 @@ package invoice
 
 import (
 	"context"
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"strings"
 	"time"
-
-	"crypto-checkout/internal/domain/shared"
 
 	"github.com/shopspring/decimal"
 )
@@ -25,27 +24,71 @@ func NewInvoiceService(repository Repository) InvoiceService {
 
 // CreateInvoice creates a new invoice with the given parameters.
 func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, req *CreateInvoiceRequest) (*Invoice, error) {
+	if err := s.validateCreateInvoiceRequest(req); err != nil {
+		return nil, err
+	}
+
+	items, pricing, err := s.buildInvoiceItemsAndPricing(req)
+	if err != nil {
+		return nil, err
+	}
+
+	exchangeRate, err := s.getExchangeRate(ctx, req.Currency, req.CryptoCurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	paymentAddress, err := s.generatePaymentAddress(ctx, req.CryptoCurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	paymentTolerance := s.getPaymentTolerance(req)
+	expiration := s.getExpiration(req)
+	invoiceID := s.generateInvoiceID()
+
+	if err := s.validateInvoiceComponents(invoiceID, req, items, pricing, paymentAddress, exchangeRate, paymentTolerance, expiration); err != nil {
+		return nil, err
+	}
+
+	invoice, err := s.buildInvoice(
+		invoiceID, req, items, pricing, paymentAddress, exchangeRate, paymentTolerance, expiration,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repository.Save(ctx, invoice); err != nil {
+		return nil, err
+	}
+
+	return invoice, nil
+}
+
+// validateCreateInvoiceRequest validates the basic request parameters.
+func (s *InvoiceServiceImpl) validateCreateInvoiceRequest(req *CreateInvoiceRequest) error {
 	if req == nil {
-		return nil, errors.New("create invoice request cannot be nil")
+		return errors.New("create invoice request cannot be nil")
 	}
-
 	if req.MerchantID == "" {
-		return nil, errors.New("merchant ID is required")
+		return errors.New("merchant ID is required")
 	}
-
 	if req.Title == "" {
-		return nil, errors.New("title is required")
+		return errors.New("title is required")
 	}
-
 	if len(req.Items) == 0 {
-		return nil, errors.New("at least one item is required")
+		return errors.New("at least one item is required")
 	}
-
 	if !req.CryptoCurrency.IsValid() {
-		return nil, errors.New("invalid cryptocurrency")
+		return errors.New("invalid cryptocurrency")
 	}
+	return nil
+}
 
-	// Create invoice items
+// buildInvoiceItemsAndPricing creates invoice items and calculates pricing.
+func (s *InvoiceServiceImpl) buildInvoiceItemsAndPricing(
+	req *CreateInvoiceRequest,
+) ([]*InvoiceItem, *InvoicePricing, error) {
 	items := make([]*InvoiceItem, 0, len(req.Items))
 	subtotal := decimal.Zero
 
@@ -57,118 +100,115 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, req *CreateInvoi
 			itemReq.UnitPrice,
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		items = append(items, item)
 		subtotal = subtotal.Add(item.TotalPrice().Amount())
 	}
 
-	// Create subtotal money
 	subtotalMoney, err := shared.NewMoney(subtotal.String(), req.Currency)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Handle tax
 	var taxMoney *shared.Money
 	if req.Tax != nil {
 		taxMoney = req.Tax
 	} else {
 		taxMoney, err = shared.NewMoney("0.00", req.Currency)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	// Calculate total
 	totalMoney, err := subtotalMoney.Add(taxMoney)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Create pricing
 	pricing, err := NewInvoicePricing(subtotalMoney, taxMoney, totalMoney)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Get exchange rate (this would typically come from an exchange rate service)
-	exchangeRate, err := s.getExchangeRate(ctx, req.Currency, req.CryptoCurrency)
-	if err != nil {
-		return nil, err
-	}
+	return items, pricing, nil
+}
 
-	// Generate payment address (this would typically come from a payment address service)
-	paymentAddress, err := s.generatePaymentAddress(ctx, req.CryptoCurrency)
-	if err != nil {
-		return nil, err
+// getPaymentTolerance returns the payment tolerance, using default if not provided.
+func (s *InvoiceServiceImpl) getPaymentTolerance(req *CreateInvoiceRequest) *PaymentTolerance {
+	if req.PaymentTolerance != nil {
+		return req.PaymentTolerance
 	}
+	return DefaultPaymentTolerance()
+}
 
-	// Set default payment tolerance if not provided
-	paymentTolerance := req.PaymentTolerance
-	if paymentTolerance == nil {
-		paymentTolerance = DefaultPaymentTolerance()
-	}
-
-	// Set default expiration duration if not provided
+// getExpiration returns the expiration, using default if not provided.
+func (s *InvoiceServiceImpl) getExpiration(req *CreateInvoiceRequest) *InvoiceExpiration {
 	expirationDuration := req.ExpirationDuration
 	if expirationDuration == 0 {
 		expirationDuration = 30 * time.Minute
 	}
+	return NewInvoiceExpiration(expirationDuration)
+}
 
-	// Create expiration
-	expiration := NewInvoiceExpiration(expirationDuration)
-
-	// Generate invoice ID (this would typically come from an ID generator service)
-	invoiceID := s.generateInvoiceID()
-
-	// Validate input parameters
+// validateInvoiceComponents validates all invoice components.
+func (s *InvoiceServiceImpl) validateInvoiceComponents(
+	invoiceID string,
+	req *CreateInvoiceRequest,
+	items []*InvoiceItem,
+	pricing *InvoicePricing,
+	paymentAddress *shared.PaymentAddress,
+	exchangeRate *shared.ExchangeRate,
+	paymentTolerance *PaymentTolerance,
+	expiration *InvoiceExpiration,
+) error {
 	if invoiceID == "" {
-		return nil, errors.New("invoice ID cannot be empty")
-	}
-	if req.MerchantID == "" {
-		return nil, errors.New("merchant ID cannot be empty")
-	}
-	if req.Title == "" {
-		return nil, errors.New("title cannot be empty")
+		return errors.New("invoice ID cannot be empty")
 	}
 	if len(req.Title) > 255 {
-		return nil, errors.New("title cannot exceed 255 characters")
+		return errors.New("title cannot exceed 255 characters")
 	}
 	if len(req.Description) > 1000 {
-		return nil, errors.New("description cannot exceed 1000 characters")
+		return errors.New("description cannot exceed 1000 characters")
 	}
 	if len(items) == 0 {
-		return nil, errors.New("invoice must have at least one item")
+		return errors.New("invoice must have at least one item")
 	}
 	if pricing == nil {
-		return nil, errors.New("pricing cannot be nil")
-	}
-	if !req.CryptoCurrency.IsValid() {
-		return nil, errors.New("invalid cryptocurrency")
+		return errors.New("pricing cannot be nil")
 	}
 	if paymentAddress == nil {
-		return nil, errors.New("payment address cannot be nil")
+		return errors.New("payment address cannot be nil")
 	}
 	if exchangeRate == nil {
-		return nil, errors.New("exchange rate cannot be nil")
+		return errors.New("exchange rate cannot be nil")
 	}
 	if paymentTolerance == nil {
-		return nil, errors.New("payment tolerance cannot be nil")
+		return errors.New("payment tolerance cannot be nil")
 	}
 	if expiration == nil {
-		return nil, errors.New("expiration cannot be nil")
+		return errors.New("expiration cannot be nil")
 	}
-	// Validate that exchange rate is not expired
 	if exchangeRate.IsExpired() {
-		return nil, errors.New("exchange rate has expired")
+		return errors.New("exchange rate has expired")
 	}
-	// Validate that payment address is not expired
 	if paymentAddress.IsExpired() {
-		return nil, errors.New("payment address has expired")
+		return errors.New("payment address has expired")
 	}
+	return nil
+}
 
-	// Create invoice with validation
+// buildInvoice creates the invoice entity.
+func (s *InvoiceServiceImpl) buildInvoice(
+	invoiceID string,
+	req *CreateInvoiceRequest,
+	items []*InvoiceItem,
+	pricing *InvoicePricing,
+	paymentAddress *shared.PaymentAddress,
+	exchangeRate *shared.ExchangeRate,
+	paymentTolerance *PaymentTolerance,
+	expiration *InvoiceExpiration,
+) (*Invoice, error) {
 	invoice, err := NewInvoice(
 		invoiceID,
 		req.MerchantID,
@@ -187,14 +227,8 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, req *CreateInvoi
 		return nil, err
 	}
 
-	// Set customer ID if provided
 	if req.CustomerID != nil {
 		invoice.SetCustomerID(*req.CustomerID)
-	}
-
-	// Save invoice
-	if err := s.repository.Save(ctx, invoice); err != nil {
-		return nil, err
 	}
 
 	return invoice, nil
@@ -210,7 +244,10 @@ func (s *InvoiceServiceImpl) GetInvoice(ctx context.Context, id string) (*Invoic
 }
 
 // GetInvoiceByPaymentAddress retrieves an invoice by payment address.
-func (s *InvoiceServiceImpl) GetInvoiceByPaymentAddress(ctx context.Context, address *shared.PaymentAddress) (*Invoice, error) {
+func (s *InvoiceServiceImpl) GetInvoiceByPaymentAddress(
+	ctx context.Context,
+	address *shared.PaymentAddress,
+) (*Invoice, error) {
 	if address == nil {
 		return nil, errors.New("payment address cannot be nil")
 	}
@@ -219,87 +256,22 @@ func (s *InvoiceServiceImpl) GetInvoiceByPaymentAddress(ctx context.Context, add
 }
 
 // ListInvoices retrieves invoices with the given filters.
-func (s *InvoiceServiceImpl) ListInvoices(ctx context.Context, req *ListInvoicesRequest) (*ListInvoicesResponse, error) {
-	if req == nil {
-		return nil, errors.New("list invoices request cannot be nil")
+func (s *InvoiceServiceImpl) ListInvoices(
+	ctx context.Context,
+	req *ListInvoicesRequest,
+) (*ListInvoicesResponse, error) {
+	if err := s.validateListInvoicesRequest(req); err != nil {
+		return nil, err
 	}
 
-	if req.MerchantID == "" {
-		return nil, errors.New("merchant ID is required")
-	}
-
-	// Set default limit
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	// This would typically be implemented in the repository with proper filtering
-	// For now, we'll use a simple implementation
-	var invoices []*Invoice
-	var err error
-
-	if req.Status != nil {
-		invoices, err = s.repository.FindByStatus(ctx, *req.Status)
-	} else {
-		invoices, err = s.repository.FindActive(ctx)
-	}
-
+	limit := s.normalizeLimit(req.Limit)
+	invoices, err := s.fetchInvoices(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Apply additional filtering (this would typically be done in the repository)
-	filteredInvoices := make([]*Invoice, 0)
-	for _, invoice := range invoices {
-		// Filter by merchant ID
-		if invoice.MerchantID() != req.MerchantID {
-			continue
-		}
-
-		// Filter by customer ID if provided
-		if req.CustomerID != nil {
-			if invoice.CustomerID() == nil || *invoice.CustomerID() != *req.CustomerID {
-				continue
-			}
-		}
-
-		// Filter by date range if provided
-		if req.CreatedAfter != nil && invoice.CreatedAt().Before(*req.CreatedAfter) {
-			continue
-		}
-		if req.CreatedBefore != nil && invoice.CreatedAt().After(*req.CreatedBefore) {
-			continue
-		}
-
-		// Filter by search term if provided
-		if req.Search != nil {
-			searchTerm := *req.Search
-			if !s.matchesSearch(invoice, searchTerm) {
-				continue
-			}
-		}
-
-		filteredInvoices = append(filteredInvoices, invoice)
-	}
-
-	// Apply pagination
-	start := req.Offset
-	if start < 0 {
-		start = 0
-	}
-	end := start + limit
-	if end > len(filteredInvoices) {
-		end = len(filteredInvoices)
-	}
-
-	var paginatedInvoices []*Invoice
-	if start < len(filteredInvoices) {
-		paginatedInvoices = filteredInvoices[start:end]
-	}
+	filteredInvoices := s.filterInvoices(invoices, req)
+	paginatedInvoices := s.paginateInvoices(filteredInvoices, req.Offset, limit)
 
 	return &ListInvoicesResponse{
 		Invoices: paginatedInvoices,
@@ -307,6 +279,97 @@ func (s *InvoiceServiceImpl) ListInvoices(ctx context.Context, req *ListInvoices
 		Limit:    limit,
 		Offset:   req.Offset,
 	}, nil
+}
+
+// validateListInvoicesRequest validates the list invoices request.
+func (s *InvoiceServiceImpl) validateListInvoicesRequest(req *ListInvoicesRequest) error {
+	if req == nil {
+		return errors.New("list invoices request cannot be nil")
+	}
+	if req.MerchantID == "" {
+		return errors.New("merchant ID is required")
+	}
+	return nil
+}
+
+// normalizeLimit normalizes the limit to a valid range.
+func (s *InvoiceServiceImpl) normalizeLimit(limit int) int {
+	if limit <= 0 {
+		return 20
+	}
+	if limit > 100 {
+		return 100
+	}
+	return limit
+}
+
+// fetchInvoices retrieves invoices from the repository.
+func (s *InvoiceServiceImpl) fetchInvoices(ctx context.Context, req *ListInvoicesRequest) ([]*Invoice, error) {
+	if req.Status != nil {
+		return s.repository.FindByStatus(ctx, *req.Status)
+	}
+	return s.repository.FindActive(ctx)
+}
+
+// filterInvoices applies filtering logic to the invoices.
+func (s *InvoiceServiceImpl) filterInvoices(invoices []*Invoice, req *ListInvoicesRequest) []*Invoice {
+	filteredInvoices := make([]*Invoice, 0)
+	for _, invoice := range invoices {
+		if s.shouldIncludeInvoice(invoice, req) {
+			filteredInvoices = append(filteredInvoices, invoice)
+		}
+	}
+	return filteredInvoices
+}
+
+// shouldIncludeInvoice determines if an invoice should be included in the results.
+func (s *InvoiceServiceImpl) shouldIncludeInvoice(invoice *Invoice, req *ListInvoicesRequest) bool {
+	// Filter by merchant ID
+	if invoice.MerchantID() != req.MerchantID {
+		return false
+	}
+
+	// Filter by customer ID if provided
+	if req.CustomerID != nil {
+		if invoice.CustomerID() == nil || *invoice.CustomerID() != *req.CustomerID {
+			return false
+		}
+	}
+
+	// Filter by date range if provided
+	if req.CreatedAfter != nil && invoice.CreatedAt().Before(*req.CreatedAfter) {
+		return false
+	}
+	if req.CreatedBefore != nil && invoice.CreatedAt().After(*req.CreatedBefore) {
+		return false
+	}
+
+	// Filter by search term if provided
+	if req.Search != nil {
+		if !s.matchesSearch(invoice, *req.Search) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// paginateInvoices applies pagination to the filtered invoices.
+func (s *InvoiceServiceImpl) paginateInvoices(invoices []*Invoice, offset, limit int) []*Invoice {
+	start := offset
+	if start < 0 {
+		start = 0
+	}
+	end := start + limit
+	if end > len(invoices) {
+		end = len(invoices)
+	}
+
+	if start >= len(invoices) {
+		return []*Invoice{}
+	}
+
+	return invoices[start:end]
 }
 
 // MarkInvoiceAsViewed marks an invoice as viewed by the customer using FSM.
@@ -342,7 +405,7 @@ func (s *InvoiceServiceImpl) MarkInvoiceAsViewed(ctx context.Context, id string)
 }
 
 // CancelInvoice cancels an invoice using FSM.
-func (s *InvoiceServiceImpl) CancelInvoice(ctx context.Context, id string, reason string) error {
+func (s *InvoiceServiceImpl) CancelInvoice(ctx context.Context, id, reason string) error {
 	if id == "" {
 		return errors.New("invoice ID cannot be empty")
 	}
@@ -494,7 +557,12 @@ func (s *InvoiceServiceImpl) GetInvoiceStatus(ctx context.Context, id string) (I
 }
 
 // UpdateInvoiceStatus updates the status of an invoice using FSM.
-func (s *InvoiceServiceImpl) UpdateInvoiceStatus(ctx context.Context, id string, newStatus InvoiceStatus, reason string) error {
+func (s *InvoiceServiceImpl) UpdateInvoiceStatus(
+	ctx context.Context,
+	id string,
+	newStatus InvoiceStatus,
+	reason string,
+) error {
 	if id == "" {
 		return errors.New("invoice ID cannot be empty")
 	}
@@ -519,7 +587,11 @@ func (s *InvoiceServiceImpl) UpdateInvoiceStatus(ctx context.Context, id string,
 
 // Helper methods
 
-func (s *InvoiceServiceImpl) getExchangeRate(ctx context.Context, from shared.Currency, to shared.CryptoCurrency) (*shared.ExchangeRate, error) {
+func (s *InvoiceServiceImpl) getExchangeRate(
+	ctx context.Context,
+	from shared.Currency,
+	to shared.CryptoCurrency,
+) (*shared.ExchangeRate, error) {
 	// This would typically call an exchange rate service
 	// For now, we'll return a mock rate
 	rate := "1.0" // Mock rate
@@ -529,7 +601,10 @@ func (s *InvoiceServiceImpl) getExchangeRate(ctx context.Context, from shared.Cu
 	return shared.NewExchangeRate(rate, from, to, source, duration)
 }
 
-func (s *InvoiceServiceImpl) generatePaymentAddress(ctx context.Context, currency shared.CryptoCurrency) (*shared.PaymentAddress, error) {
+func (s *InvoiceServiceImpl) generatePaymentAddress(
+	ctx context.Context,
+	currency shared.CryptoCurrency,
+) (*shared.PaymentAddress, error) {
 	// This would typically call a payment address service
 	// For now, we'll return a mock address
 	var network shared.BlockchainNetwork

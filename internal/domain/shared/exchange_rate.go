@@ -18,7 +18,13 @@ type ExchangeRate struct {
 }
 
 // NewExchangeRate creates a new ExchangeRate.
-func NewExchangeRate(rate string, fromCurrency Currency, toCurrency CryptoCurrency, source string, validDuration time.Duration) (*ExchangeRate, error) {
+func NewExchangeRate(
+	rate string,
+	fromCurrency Currency,
+	toCurrency CryptoCurrency,
+	source string,
+	validDuration time.Duration,
+) (*ExchangeRate, error) {
 	if rate == "" {
 		return nil, errors.New("exchange rate cannot be empty")
 	}

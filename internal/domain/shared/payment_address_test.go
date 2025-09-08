@@ -1,10 +1,9 @@
 package shared_test
 
 import (
+	"crypto-checkout/internal/domain/shared"
 	"testing"
 	"time"
-
-	"crypto-checkout/internal/domain/shared"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +38,11 @@ func TestPaymentAddress(t *testing.T) {
 
 	t.Run("NewPaymentAddressWithExpiry - valid address with expiry", func(t *testing.T) {
 		expiresAt := time.Now().UTC().Add(30 * time.Minute)
-		address, err := shared.NewPaymentAddressWithExpiry("TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN", shared.NetworkTron, expiresAt)
+		address, err := shared.NewPaymentAddressWithExpiry(
+			"TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN",
+			shared.NetworkTron,
+			expiresAt,
+		)
 		require.NoError(t, err)
 		require.Equal(t, expiresAt, *address.ExpiresAt())
 		require.False(t, address.IsExpired())
@@ -47,14 +50,22 @@ func TestPaymentAddress(t *testing.T) {
 
 	t.Run("NewPaymentAddressWithExpiry - expired address", func(t *testing.T) {
 		expiresAt := time.Now().UTC().Add(-1 * time.Hour)
-		_, err := shared.NewPaymentAddressWithExpiry("TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN", shared.NetworkTron, expiresAt)
+		_, err := shared.NewPaymentAddressWithExpiry(
+			"TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN",
+			shared.NetworkTron,
+			expiresAt,
+		)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "expiration time must be in the future")
 	})
 
 	t.Run("IsExpired - non-expired address", func(t *testing.T) {
 		futureExpiry := time.Now().UTC().Add(1 * time.Hour)
-		address, err := shared.NewPaymentAddressWithExpiry("TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN", shared.NetworkTron, futureExpiry)
+		address, err := shared.NewPaymentAddressWithExpiry(
+			"TQn9Y2khEsLMWn1aXKURNC62XLFPqpTUcN",
+			shared.NetworkTron,
+			futureExpiry,
+		)
 		require.NoError(t, err)
 		require.False(t, address.IsExpired())
 	})

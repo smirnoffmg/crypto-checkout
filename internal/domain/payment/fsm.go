@@ -2,9 +2,8 @@ package payment
 
 import (
 	"context"
-	"time"
-
 	"crypto-checkout/internal/domain/shared"
+	"time"
 
 	"github.com/looplab/fsm"
 )
@@ -37,7 +36,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 		},
 		fsm.Callbacks{
 			// Guard conditions
-			"before_include_in_block": func(ctx context.Context, e *fsm.Event) {
+			"before_include_in_block": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					if err := CanIncludeInBlock(payment); err != nil {
@@ -45,7 +44,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 					}
 				}
 			},
-			"before_confirm": func(ctx context.Context, e *fsm.Event) {
+			"before_confirm": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					if err := CanConfirm(payment); err != nil {
@@ -53,7 +52,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 					}
 				}
 			},
-			"before_orphan": func(ctx context.Context, e *fsm.Event) {
+			"before_orphan": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					if err := CanOrphan(payment); err != nil {
@@ -61,7 +60,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 					}
 				}
 			},
-			"before_detect": func(ctx context.Context, e *fsm.Event) {
+			"before_detect": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					if err := CanDetect(payment); err != nil {
@@ -69,7 +68,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 					}
 				}
 			},
-			"before_fail": func(ctx context.Context, e *fsm.Event) {
+			"before_fail": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					if err := CanFail(payment); err != nil {
@@ -79,7 +78,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 			},
 
 			// State entry callbacks
-			"enter_confirmed": func(ctx context.Context, e *fsm.Event) {
+			"enter_confirmed": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					now := time.Now().UTC()
@@ -91,7 +90,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 					payment.timestamps.SetUpdatedAt(now)
 				}
 			},
-			"enter_state": func(ctx context.Context, e *fsm.Event) {
+			"enter_state": func(_ context.Context, e *fsm.Event) {
 				if len(e.Args) > 0 {
 					payment := e.Args[0].(*Payment)
 					// Update payment status to match FSM state
@@ -110,7 +109,7 @@ func NewPaymentFSM(payment *Payment) *PaymentFSM {
 
 // CurrentStatus returns the current payment status.
 func (pfsm *PaymentFSM) CurrentStatus() PaymentStatus {
-	return PaymentStatus(pfsm.FSM.Current())
+	return PaymentStatus(pfsm.Current())
 }
 
 // CanTransitionTo checks if the payment can transition to the target status.

@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"bytes"
+	"crypto-checkout/internal/presentation/web"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,8 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/internal/presentation/web"
 )
 
 func TestInvoiceStatusEndpoint(t *testing.T) {
@@ -62,7 +61,7 @@ func TestInvoiceStatusEndpoint(t *testing.T) {
 		require.Equal(t, "created", createResponse.Status)
 
 		// Now check the invoice status
-		req := httptest.NewRequest(http.MethodGet, "/invoice/"+invoiceID+"/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/invoice/"+invoiceID+"/status", http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -84,7 +83,7 @@ func TestInvoiceStatusEndpoint(t *testing.T) {
 		invoiceID := "non-existent-invoice"
 
 		// When
-		req := httptest.NewRequest(http.MethodGet, "/invoice/"+invoiceID+"/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/invoice/"+invoiceID+"/status", http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -106,7 +105,7 @@ func TestInvoiceStatusEndpoint(t *testing.T) {
 		invoiceID := ""
 
 		// When
-		req := httptest.NewRequest(http.MethodGet, "/invoice/"+invoiceID+"/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/invoice/"+invoiceID+"/status", http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)

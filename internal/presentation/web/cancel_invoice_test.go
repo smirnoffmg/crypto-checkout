@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"bytes"
+	"crypto-checkout/internal/presentation/web"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,8 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/internal/presentation/web"
 )
 
 func TestCancelInvoiceEndpoint(t *testing.T) {
@@ -69,7 +68,11 @@ func TestCancelInvoiceEndpoint(t *testing.T) {
 		cancelBody, err := json.Marshal(cancelReq)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(cancelBody))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(cancelBody),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
@@ -100,7 +103,11 @@ func TestCancelInvoiceEndpoint(t *testing.T) {
 		requestBody, err := json.Marshal(request)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(requestBody),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
@@ -130,7 +137,11 @@ func TestCancelInvoiceEndpoint(t *testing.T) {
 		requestBody, err := json.Marshal(request)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(requestBody),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
@@ -154,7 +165,11 @@ func TestCancelInvoiceEndpoint(t *testing.T) {
 		invoiceID := "inv_test123"
 		requestBody := []byte(`{"invalid": json}`)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(requestBody),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
@@ -183,7 +198,11 @@ func TestCancelInvoiceEndpoint(t *testing.T) {
 		requestBody, err := json.Marshal(request)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(requestBody),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		// No Authorization header
 

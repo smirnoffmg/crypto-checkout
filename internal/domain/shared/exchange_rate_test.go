@@ -1,17 +1,22 @@
 package shared_test
 
 import (
+	"crypto-checkout/internal/domain/shared"
 	"testing"
 	"time"
-
-	"crypto-checkout/internal/domain/shared"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestExchangeRate(t *testing.T) {
 	t.Run("NewExchangeRate - valid rate", func(t *testing.T) {
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 		require.Equal(t, "1.5", rate.Rate().String())
 		require.Equal(t, shared.CurrencyUSD, rate.FromCurrency())
@@ -21,7 +26,13 @@ func TestExchangeRate(t *testing.T) {
 	})
 
 	t.Run("NewExchangeRate - empty rate", func(t *testing.T) {
-		_, err := shared.NewExchangeRate("", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		_, err := shared.NewExchangeRate(
+			"",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "exchange rate cannot be empty")
 	})
@@ -45,25 +56,49 @@ func TestExchangeRate(t *testing.T) {
 	})
 
 	t.Run("NewExchangeRate - invalid rate format", func(t *testing.T) {
-		_, err := shared.NewExchangeRate("invalid", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		_, err := shared.NewExchangeRate(
+			"invalid",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid exchange rate format")
 	})
 
 	t.Run("NewExchangeRate - zero rate", func(t *testing.T) {
-		_, err := shared.NewExchangeRate("0", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		_, err := shared.NewExchangeRate(
+			"0",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "exchange rate must be positive")
 	})
 
 	t.Run("NewExchangeRate - negative rate", func(t *testing.T) {
-		_, err := shared.NewExchangeRate("-1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		_, err := shared.NewExchangeRate(
+			"-1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "exchange rate must be positive")
 	})
 
 	t.Run("Convert - valid conversion", func(t *testing.T) {
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 
 		amount, err := shared.NewMoney("100.00", shared.CurrencyUSD)
@@ -76,7 +111,13 @@ func TestExchangeRate(t *testing.T) {
 	})
 
 	t.Run("Convert - currency mismatch", func(t *testing.T) {
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 
 		amount, err := shared.NewMoney("100.00", shared.CurrencyEUR)
@@ -88,7 +129,13 @@ func TestExchangeRate(t *testing.T) {
 	})
 
 	t.Run("Convert - nil amount", func(t *testing.T) {
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 
 		_, err = rate.Convert(nil)
@@ -98,35 +145,77 @@ func TestExchangeRate(t *testing.T) {
 
 	t.Run("IsExpired - expired rate", func(t *testing.T) {
 		// Create a rate that expires immediately
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", -1*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			-1*time.Minute,
+		)
 		require.NoError(t, err)
 		require.True(t, rate.IsExpired())
 	})
 
 	t.Run("String", func(t *testing.T) {
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 		require.Equal(t, "1.5", rate.String())
 	})
 
 	t.Run("Equals - same rate", func(t *testing.T) {
-		rate1, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate1, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
-		rate2, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate2, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 		require.True(t, rate1.Equals(rate2))
 	})
 
 	t.Run("Equals - different rate", func(t *testing.T) {
-		rate1, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate1, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
-		rate2, err := shared.NewExchangeRate("2.0", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate2, err := shared.NewExchangeRate(
+			"2.0",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 		require.False(t, rate1.Equals(rate2))
 	})
 
 	t.Run("Equals - nil rate", func(t *testing.T) {
-		rate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test_provider", 30*time.Minute)
+		rate, err := shared.NewExchangeRate(
+			"1.5",
+			shared.CurrencyUSD,
+			shared.CryptoCurrencyUSDT,
+			"test_provider",
+			30*time.Minute,
+		)
 		require.NoError(t, err)
 		require.False(t, rate.Equals(nil))
 	})

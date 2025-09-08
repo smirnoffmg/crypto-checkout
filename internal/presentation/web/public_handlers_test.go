@@ -3,6 +3,7 @@ package web_test
 import (
 	"bytes"
 	"context"
+	"crypto-checkout/internal/presentation/web"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/internal/presentation/web"
 )
 
 func TestPublicInvoiceEndpoint(t *testing.T) {
@@ -64,7 +63,7 @@ func TestPublicInvoiceEndpoint(t *testing.T) {
 		require.Equal(t, "created", createResponse.Status)
 
 		// Now retrieve the invoice via public endpoint
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID, http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -88,7 +87,7 @@ func TestPublicInvoiceEndpoint(t *testing.T) {
 		invoiceID := "non-existent-invoice"
 
 		// When
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID, http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -110,7 +109,7 @@ func TestPublicInvoiceEndpoint(t *testing.T) {
 		invoiceID := "invalid-id-format"
 
 		// When
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID, http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -177,7 +176,7 @@ func TestPublicInvoiceStatusEndpoint(t *testing.T) {
 		require.Equal(t, "created", createResponse.Status)
 
 		// Now check the invoice status via public endpoint
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/status", http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -199,7 +198,7 @@ func TestPublicInvoiceStatusEndpoint(t *testing.T) {
 		invoiceID := "inv_nonexistent"
 
 		// When
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/status", http.NoBody)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -269,7 +268,7 @@ func TestPublicInvoiceEventsEndpoint(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/events", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/events", http.NoBody)
 		req.Header.Set("Accept", "text/event-stream")
 		req = req.WithContext(ctx)
 		w := httptest.NewRecorder()
@@ -308,7 +307,7 @@ func TestPublicInvoiceEventsEndpoint(t *testing.T) {
 		invoiceID := "inv_nonexistent"
 
 		// When
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/events", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/invoice/"+invoiceID+"/events", http.NoBody)
 		req.Header.Set("Accept", "text/event-stream")
 		w := httptest.NewRecorder()
 

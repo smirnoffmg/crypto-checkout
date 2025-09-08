@@ -36,7 +36,11 @@ func NewPaymentAddress(address string, network BlockchainNetwork) (*PaymentAddre
 }
 
 // NewPaymentAddressWithExpiry creates a new PaymentAddress with expiration.
-func NewPaymentAddressWithExpiry(address string, network BlockchainNetwork, expiresAt time.Time) (*PaymentAddress, error) {
+func NewPaymentAddressWithExpiry(
+	address string,
+	network BlockchainNetwork,
+	expiresAt time.Time,
+) (*PaymentAddress, error) {
 	addr, err := NewPaymentAddress(address, network)
 	if err != nil {
 		return nil, err

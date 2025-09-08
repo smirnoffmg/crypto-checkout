@@ -2,11 +2,10 @@
 package database
 
 import (
+	"crypto-checkout/pkg/config"
 	"fmt"
 	"strings"
 	"time"
-
-	"crypto-checkout/pkg/config"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -20,25 +19,25 @@ type Connection struct {
 }
 
 // NewConnection creates a new database connection.
-func NewConnection(config config.DatabaseConfig) (*Connection, error) {
+func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 	var db *gorm.DB
 	var err error
 
 	// Check if URL is provided (for SQLite or other databases)
-	if config.URL != "" {
+	if cfg.URL != "" {
 		switch {
-		case strings.HasPrefix(config.URL, "sqlite://"):
+		case strings.HasPrefix(cfg.URL, "sqlite://"):
 			// SQLite connection
-			dbPath := strings.TrimPrefix(config.URL, "sqlite://")
+			dbPath := strings.TrimPrefix(cfg.URL, "sqlite://")
 			db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 				Logger: logger.Default.LogMode(logger.Silent), // Silent for tests
 				NowFunc: func() time.Time {
 					return time.Now().UTC()
 				},
 			})
-		case strings.HasPrefix(config.URL, "file::memory:"):
+		case strings.HasPrefix(cfg.URL, "file::memory:"):
 			// In-memory SQLite connection
-			db, err = gorm.Open(sqlite.Open(config.URL), &gorm.Config{
+			db, err = gorm.Open(sqlite.Open(cfg.URL), &gorm.Config{
 				Logger: logger.Default.LogMode(logger.Silent), // Silent for tests
 				NowFunc: func() time.Time {
 					return time.Now().UTC()
@@ -46,7 +45,7 @@ func NewConnection(config config.DatabaseConfig) (*Connection, error) {
 			})
 		default:
 			// Other database URLs (PostgreSQL, etc.)
-			db, err = gorm.Open(postgres.Open(config.URL), &gorm.Config{
+			db, err = gorm.Open(postgres.Open(cfg.URL), &gorm.Config{
 				Logger: logger.Default.LogMode(logger.Info),
 				NowFunc: func() time.Time {
 					return time.Now().UTC()
@@ -56,7 +55,7 @@ func NewConnection(config config.DatabaseConfig) (*Connection, error) {
 	} else {
 		// PostgreSQL connection using individual config fields
 		dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-			config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)
+			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode)
 
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 			Logger: logger.Default.LogMode(logger.Info),
@@ -77,7 +76,8 @@ func NewConnection(config config.DatabaseConfig) (*Connection, error) {
 	}
 
 	// Different connection pool settings for SQLite vs PostgreSQL
-	if config.URL != "" && (strings.HasPrefix(config.URL, "sqlite://") || strings.HasPrefix(config.URL, "file::memory:")) {
+	if cfg.URL != "" &&
+		(strings.HasPrefix(cfg.URL, "sqlite://") || strings.HasPrefix(cfg.URL, "file::memory:")) {
 		// SQLite connection pool settings - optimized for concurrency
 		// SQLite can handle multiple readers but limited concurrent writers
 		sqlDB.SetMaxIdleConns(5)    // Allow more idle connections for better concurrency
@@ -85,7 +85,7 @@ func NewConnection(config config.DatabaseConfig) (*Connection, error) {
 		sqlDB.SetConnMaxLifetime(0) // Keep connections alive
 
 		// Enable WAL mode for better concurrency (if not in-memory)
-		if !strings.HasPrefix(config.URL, "file::memory:") {
+		if !strings.HasPrefix(cfg.URL, "file::memory:") {
 			// Enable WAL mode for better concurrency
 			db.Exec("PRAGMA journal_mode=WAL")
 			db.Exec("PRAGMA synchronous=NORMAL")

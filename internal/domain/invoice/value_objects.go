@@ -1,10 +1,9 @@
 package invoice
 
 import (
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"time"
-
-	"crypto-checkout/internal/domain/shared"
 
 	"github.com/shopspring/decimal"
 )
@@ -17,7 +16,10 @@ type PaymentTolerance struct {
 }
 
 // NewPaymentTolerance creates a new PaymentTolerance.
-func NewPaymentTolerance(underpaymentThreshold, overpaymentThreshold string, overpaymentAction OverpaymentAction) (*PaymentTolerance, error) {
+func NewPaymentTolerance(
+	underpaymentThreshold, overpaymentThreshold string,
+	overpaymentAction OverpaymentAction,
+) (*PaymentTolerance, error) {
 	if underpaymentThreshold == "" {
 		return nil, errors.New("underpayment threshold cannot be empty")
 	}
@@ -225,7 +227,7 @@ type InvoiceItem struct {
 }
 
 // NewInvoiceItem creates a new InvoiceItem.
-func NewInvoiceItem(name, description string, quantity string, unitPrice *shared.Money) (*InvoiceItem, error) {
+func NewInvoiceItem(name, description, quantity string, unitPrice *shared.Money) (*InvoiceItem, error) {
 	if name == "" {
 		return nil, errors.New("item name cannot be empty")
 	}

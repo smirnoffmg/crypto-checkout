@@ -1,12 +1,11 @@
 package database_test
 
 import (
-	"testing"
-	"time"
-
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/internal/infrastructure/database"
+	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -107,7 +106,7 @@ func TestInvoiceMapper(t *testing.T) {
 			domain, err := mapper.ToDomain(model)
 			require.Error(t, err)
 			require.Nil(t, domain)
-			require.Contains(t, err.Error(), "Field validation for 'Items' failed on the 'required' tag")
+			require.Contains(t, err.Error(), "Field validation for 'Items' failed on the 'min' tag")
 		})
 
 		t.Run("Invalid_Items_JSON", func(t *testing.T) {
@@ -146,8 +145,17 @@ func TestInvoiceMapper(t *testing.T) {
 			total, _ := shared.NewMoney("22.00", shared.CurrencyUSD)
 			pricing, _ := invoice.NewInvoicePricing(subtotal, tax, total)
 
-			paymentAddress, _ := shared.NewPaymentAddress("TTestAddress123456789012345678901234567890", shared.NetworkTron)
-			exchangeRate, _ := shared.NewExchangeRate("1.0", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "default", 30*time.Minute)
+			paymentAddress, _ := shared.NewPaymentAddress(
+				"TTestAddress123456789012345678901234567890",
+				shared.NetworkTron,
+			)
+			exchangeRate, _ := shared.NewExchangeRate(
+				"1.0",
+				shared.CurrencyUSD,
+				shared.CryptoCurrencyUSDT,
+				"default",
+				30*time.Minute,
+			)
 			paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
 			expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
 
@@ -214,8 +222,17 @@ func TestInvoiceMapper(t *testing.T) {
 			total, _ := shared.NewMoney("11", shared.CurrencyUSD)
 			pricing, _ := invoice.NewInvoicePricing(subtotal, tax, total)
 
-			paymentAddress, _ := shared.NewPaymentAddress("TTestAddress123456789012345678901234567890", shared.NetworkTron)
-			exchangeRate, _ := shared.NewExchangeRate("1.0", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "default", 30*time.Minute)
+			paymentAddress, _ := shared.NewPaymentAddress(
+				"TTestAddress123456789012345678901234567890",
+				shared.NetworkTron,
+			)
+			exchangeRate, _ := shared.NewExchangeRate(
+				"1.0",
+				shared.CurrencyUSD,
+				shared.CryptoCurrencyUSDT,
+				"default",
+				30*time.Minute,
+			)
 			paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
 			expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
 
@@ -324,7 +341,13 @@ func TestInvoiceMapper(t *testing.T) {
 	t.Run("JSONB_Serialization", func(t *testing.T) {
 		t.Run("SerializeExchangeRate", func(t *testing.T) {
 			// Create a test exchange rate
-			exchangeRate, err := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test-source", 30*time.Minute)
+			exchangeRate, err := shared.NewExchangeRate(
+				"1.5",
+				shared.CurrencyUSD,
+				shared.CryptoCurrencyUSDT,
+				"test-source",
+				30*time.Minute,
+			)
 			require.NoError(t, err)
 
 			// Test serialization
@@ -375,9 +398,18 @@ func TestInvoiceMapper(t *testing.T) {
 				createTestInvoiceItem(t, "Test Item", "Test Description", "2", "10.00"),
 			}
 			pricing := createTestInvoicePricing(t, "20.00", "2.00", "22.00")
-			exchangeRate, _ := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test-source", 30*time.Minute)
+			exchangeRate, _ := shared.NewExchangeRate(
+				"1.5",
+				shared.CurrencyUSD,
+				shared.CryptoCurrencyUSDT,
+				"test-source",
+				30*time.Minute,
+			)
 			paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.00", invoice.OverpaymentActionCredit)
-			paymentAddress, _ := shared.NewPaymentAddress("0x1234567890123456789012345678901234567890", shared.NetworkEthereum)
+			paymentAddress, _ := shared.NewPaymentAddress(
+				"0x1234567890123456789012345678901234567890",
+				shared.NetworkEthereum,
+			)
 			expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
 
 			inv, err := invoice.NewInvoice(
@@ -484,7 +516,13 @@ func TestInvoiceMapper(t *testing.T) {
 			// Test that serialization and deserialization are inverse operations
 
 			// Create original objects
-			originalExchangeRate, _ := shared.NewExchangeRate("1.5", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "test-source", 30*time.Minute)
+			originalExchangeRate, _ := shared.NewExchangeRate(
+				"1.5",
+				shared.CurrencyUSD,
+				shared.CryptoCurrencyUSDT,
+				"test-source",
+				30*time.Minute,
+			)
 			originalPaymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.00", invoice.OverpaymentActionCredit)
 
 			// Serialize
@@ -507,9 +545,21 @@ func TestInvoiceMapper(t *testing.T) {
 			require.Equal(t, originalExchangeRate.ToCurrency(), deserializedExchangeRate.ToCurrency())
 			require.Equal(t, originalExchangeRate.Source(), deserializedExchangeRate.Source())
 
-			require.Equal(t, originalPaymentTolerance.UnderpaymentThreshold().StringFixed(2), deserializedPaymentTolerance.UnderpaymentThreshold().StringFixed(2))
-			require.Equal(t, originalPaymentTolerance.OverpaymentThreshold().StringFixed(2), deserializedPaymentTolerance.OverpaymentThreshold().StringFixed(2))
-			require.Equal(t, originalPaymentTolerance.OverpaymentAction(), deserializedPaymentTolerance.OverpaymentAction())
+			require.Equal(
+				t,
+				originalPaymentTolerance.UnderpaymentThreshold().StringFixed(2),
+				deserializedPaymentTolerance.UnderpaymentThreshold().StringFixed(2),
+			)
+			require.Equal(
+				t,
+				originalPaymentTolerance.OverpaymentThreshold().StringFixed(2),
+				deserializedPaymentTolerance.OverpaymentThreshold().StringFixed(2),
+			)
+			require.Equal(
+				t,
+				originalPaymentTolerance.OverpaymentAction(),
+				deserializedPaymentTolerance.OverpaymentAction(),
+			)
 		})
 	})
 }

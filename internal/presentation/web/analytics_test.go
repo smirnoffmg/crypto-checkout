@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"crypto-checkout/internal/presentation/web"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,8 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/internal/presentation/web"
 )
 
 func TestAnalyticsEndpoint(t *testing.T) {
@@ -25,7 +24,7 @@ func TestAnalyticsEndpoint(t *testing.T) {
 
 	t.Run("GetAnalytics_Success", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics", http.NoBody)
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		// When
@@ -47,7 +46,11 @@ func TestAnalyticsEndpoint(t *testing.T) {
 
 	t.Run("GetAnalytics_WithDateRange", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics?start_date=2024-01-01&end_date=2024-01-31", nil)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v1/analytics?start_date=2024-01-01&end_date=2024-01-31",
+			http.NoBody,
+		)
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		// When
@@ -67,7 +70,7 @@ func TestAnalyticsEndpoint(t *testing.T) {
 
 	t.Run("GetAnalytics_Unauthorized", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics", http.NoBody)
 		// No Authorization header
 
 		// When

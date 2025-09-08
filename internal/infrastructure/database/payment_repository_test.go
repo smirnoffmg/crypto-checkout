@@ -2,13 +2,12 @@ package database_test
 
 import (
 	"context"
-	"fmt"
-	"testing"
-
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/pkg/config"
+	"fmt"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -30,7 +29,11 @@ func setupPaymentTestDB(t *testing.T) *gorm.DB {
 }
 
 func createTestPayment(t *testing.T) *payment.Payment {
-	return createTestPaymentWithID(t, "test-payment-id", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	return createTestPaymentWithID(
+		t,
+		"test-payment-id",
+		"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+	)
 }
 
 func createTestPaymentWithID(t *testing.T, id, txHash string) *payment.Payment {
@@ -90,7 +93,11 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			// Save initial payment
-			p := createTestPaymentWithID(t, "update-test-payment", "0x1111111111111111111111111111111111111111111111111111111111111111")
+			p := createTestPaymentWithID(
+				t,
+				"update-test-payment",
+				"0x1111111111111111111111111111111111111111111111111111111111111111",
+			)
 			err := repo.Save(ctx, p)
 			require.NoError(t, err)
 
@@ -169,7 +176,9 @@ func TestPaymentRepository(t *testing.T) {
 			repo := database.NewPaymentRepository(db)
 			ctx := context.Background()
 
-			transactionHash, _ := payment.NewTransactionHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+			transactionHash, _ := payment.NewTransactionHash(
+				"0x0000000000000000000000000000000000000000000000000000000000000000",
+			)
 
 			found, err := repo.FindByTransactionHash(ctx, transactionHash)
 			require.Error(t, err)
@@ -201,7 +210,10 @@ func TestPaymentRepository(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				amount, _ := shared.NewMoneyWithCrypto("100.00", shared.CryptoCurrencyUSDT)
 				paymentAmount, _ := payment.NewPaymentAmount(amount, shared.CryptoCurrencyUSDT)
-				toAddress, _ := payment.NewPaymentAddress("TTestAddress123456789012345678901234567890", shared.NetworkTron)
+				toAddress, _ := payment.NewPaymentAddress(
+					"TTestAddress123456789012345678901234567890",
+					shared.NetworkTron,
+				)
 				transactionHash, _ := payment.NewTransactionHash(fmt.Sprintf("0x%064d", i))
 
 				p, err := payment.NewPayment(
@@ -284,7 +296,10 @@ func TestPaymentRepository(t *testing.T) {
 			repo := database.NewPaymentRepository(db)
 			ctx := context.Background()
 
-			address, _ := payment.NewPaymentAddress("TNonExistentAddress123456789012345678901234567890", shared.NetworkTron)
+			address, _ := payment.NewPaymentAddress(
+				"TNonExistentAddress123456789012345678901234567890",
+				shared.NetworkTron,
+			)
 
 			payments, err := repo.FindByAddress(ctx, address)
 			require.NoError(t, err)
@@ -310,12 +325,20 @@ func TestPaymentRepository(t *testing.T) {
 			ctx := context.Background()
 
 			// Create and save payments with different statuses
-			p1 := createTestPaymentWithID(t, "status-payment-1", "0x2222222222222222222222222222222222222222222222222222222222222222")
+			p1 := createTestPaymentWithID(
+				t,
+				"status-payment-1",
+				"0x2222222222222222222222222222222222222222222222222222222222222222",
+			)
 			p1.SetStatus(payment.StatusDetected)
 			err := repo.Save(ctx, p1)
 			require.NoError(t, err)
 
-			p2 := createTestPaymentWithID(t, "status-payment-2", "0x3333333333333333333333333333333333333333333333333333333333333333")
+			p2 := createTestPaymentWithID(
+				t,
+				"status-payment-2",
+				"0x3333333333333333333333333333333333333333333333333333333333333333",
+			)
 			p2.SetStatus(payment.StatusConfirming)
 			err = repo.Save(ctx, p2)
 			require.NoError(t, err)

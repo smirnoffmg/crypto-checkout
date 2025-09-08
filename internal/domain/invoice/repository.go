@@ -2,7 +2,6 @@ package invoice
 
 import (
 	"context"
-
 	"crypto-checkout/internal/domain/shared"
 )
 

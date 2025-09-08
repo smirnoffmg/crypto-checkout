@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"fmt"
 	"net/http"
@@ -8,9 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/shared"
 )
 
 // GetPublicInvoiceData handles GET /api/v1/public/invoice/:id requests.
@@ -131,7 +130,7 @@ func (h *Handler) GetPublicInvoiceEvents(c *gin.Context) {
 	c.Header("Access-Control-Allow-Headers", "Cache-Control")
 
 	// Send initial event
-	event := fmt.Sprintf("data: {\"event\": \"connected\", \"invoice_id\": \"%s\", \"timestamp\": \"%s\"}\n\n",
+	event := fmt.Sprintf("data: {\"event\": \"connected\", \"invoice_id\": %q, \"timestamp\": %q}\n\n",
 		id, time.Now().UTC().Format(time.RFC3339))
 	c.SSEvent("", event)
 	c.Writer.Flush()
@@ -146,7 +145,7 @@ func (h *Handler) GetPublicInvoiceEvents(c *gin.Context) {
 			return
 		case <-ticker.C:
 			// Send heartbeat
-			heartbeat := fmt.Sprintf("data: {\"event\": \"heartbeat\", \"timestamp\": \"%s\"}\n\n",
+			heartbeat := fmt.Sprintf("data: {\"event\": \"heartbeat\", \"timestamp\": %q}\n\n",
 				time.Now().UTC().Format(time.RFC3339))
 			c.SSEvent("", heartbeat)
 			c.Writer.Flush()

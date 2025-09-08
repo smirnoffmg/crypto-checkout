@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"bytes"
+	"crypto-checkout/test/testutil"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,8 +10,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/test/testutil"
 )
 
 func TestHealthCheckE2E(t *testing.T) {
@@ -144,7 +143,7 @@ func TestGetInvoiceE2E(t *testing.T) {
 	require.NotEmpty(t, invoiceID)
 
 	// Now get the invoice with authentication
-	getReq, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, nil)
+	getReq, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, http.NoBody)
 	require.NoError(t, err)
 	getReq.Header.Set("Authorization", "Bearer sk_test_abc123def456") // Add auth header
 

@@ -1,6 +1,10 @@
 package web
 
 import (
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/payment"
+	"crypto-checkout/internal/domain/shared"
+	"crypto-checkout/pkg/config"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,11 +15,6 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/payment"
-	"crypto-checkout/internal/domain/shared"
-	"crypto-checkout/pkg/config"
 )
 
 const (
@@ -69,47 +68,33 @@ func (h *Handler) RegisterRoutes(router *gin.Engine) {
 
 	// Public API routes (no authentication required)
 	public := router.Group("/api/v1/public")
-	{
-		public.GET("/invoice/:id", h.GetPublicInvoiceData)
-		public.GET("/invoice/:id/status", h.GetPublicInvoiceStatus)
-		public.GET("/invoice/:id/events", h.GetPublicInvoiceEvents)
-	}
+	public.GET("/invoice/:id", h.GetPublicInvoiceData)
+	public.GET("/invoice/:id/status", h.GetPublicInvoiceStatus)
+	public.GET("/invoice/:id/events", h.GetPublicInvoiceEvents)
 
 	// API v1 routes (Merchant/Admin API)
 	v1 := router.Group("/api/v1")
-	{
-		// Auth routes (no authentication required for token generation)
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/token", h.generateAuthToken)
-		}
+	// Auth routes (no authentication required for token generation)
+	auth := v1.Group("/auth")
+	auth.POST("/token", h.generateAuthToken)
 
-		// Protected routes (require authentication)
-		protected := v1.Group("")
-		protected.Use(AuthMiddleware(h.Logger))
-		{
-			// Invoice routes
-			invoices := protected.Group("/invoices")
-			{
-				invoices.POST("", h.CreateInvoice)
-				invoices.GET("", h.ListInvoices)
-				invoices.GET("/:id", h.GetInvoice)
-				invoices.POST("/:id/cancel", h.CancelInvoice)
-			}
+	// Protected routes (require authentication)
+	protected := v1.Group("")
+	protected.Use(AuthMiddleware(h.Logger))
+	// Invoice routes
+	invoices := protected.Group("/invoices")
+	invoices.POST("", h.CreateInvoice)
+	invoices.GET("", h.ListInvoices)
+	invoices.GET("/:id", h.GetInvoice)
+	invoices.POST("/:id/cancel", h.CancelInvoice)
 
-			// Analytics routes
-			analytics := protected.Group("/analytics")
-			{
-				analytics.GET("", h.GetAnalytics)
-			}
+	// Analytics routes
+	analytics := protected.Group("/analytics")
+	analytics.GET("", h.GetAnalytics)
 
-			// Admin routes
-			admin := protected.Group("/admin")
-			{
-				admin.POST("/process-expired-invoices", h.ProcessExpiredInvoices)
-			}
-		}
-	}
+	// Admin routes
+	admin := protected.Group("/admin")
+	admin.POST("/process-expired-invoices", h.ProcessExpiredInvoices)
 }
 
 // healthCheck returns the health status of the API.
@@ -185,7 +170,7 @@ func (h *Handler) createErrorResponse(errorType, message string, err error) Erro
 	return response
 }
 
-// getInvoiceStatus returns the payment status for a customer-facing invoice.
+// GetInvoiceStatus returns the payment status for a customer-facing invoice.
 // @Summary Get invoice status for customers
 // @Description Get the current status of an invoice for customer-facing display
 // @Tags Customer API
@@ -226,7 +211,7 @@ func (h *Handler) GetInvoiceStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// listInvoices returns a paginated list of invoices for merchants/admins.
+// ListInvoices returns a paginated list of invoices for merchants/admins.
 // @Summary List invoices
 // @Description Get a paginated list of invoices with optional filtering
 // @Tags Invoices
@@ -295,7 +280,7 @@ func (h *Handler) ListInvoices(c *gin.Context) {
 	c.JSON(http.StatusOK, listResponse)
 }
 
-// cancelInvoice cancels an invoice.
+// CancelInvoice cancels an invoice.
 // @Summary Cancel an invoice
 // @Description Cancel an invoice with a reason
 // @Tags Invoices
@@ -355,7 +340,7 @@ func (h *Handler) CancelInvoice(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// getAnalytics returns analytics data for merchants/admins.
+// GetAnalytics returns analytics data for merchants/admins.
 // @Summary Get analytics data
 // @Description Get comprehensive analytics data for merchants and admins
 // @Tags Analytics

@@ -2,10 +2,9 @@ package payment_test
 
 import (
 	"context"
+	"crypto-checkout/internal/domain/payment"
 	"testing"
 	"time"
-
-	"crypto-checkout/internal/domain/payment"
 
 	"github.com/stretchr/testify/require"
 )

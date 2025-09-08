@@ -2,9 +2,8 @@ package payment
 
 import (
 	"context"
-	"fmt"
-
 	"crypto-checkout/internal/domain/shared"
+	"fmt"
 )
 
 // PaymentServiceImpl implements the PaymentService interface.
@@ -75,7 +74,10 @@ func (s *PaymentServiceImpl) GetPayment(ctx context.Context, id shared.PaymentID
 }
 
 // GetPaymentByTransactionHash retrieves a payment by transaction hash.
-func (s *PaymentServiceImpl) GetPaymentByTransactionHash(ctx context.Context, txHash *TransactionHash) (*Payment, error) {
+func (s *PaymentServiceImpl) GetPaymentByTransactionHash(
+	ctx context.Context,
+	txHash *TransactionHash,
+) (*Payment, error) {
 	if txHash == nil {
 		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "transaction hash cannot be nil", nil)
 	}
@@ -155,7 +157,12 @@ func (s *PaymentServiceImpl) UpdateConfirmations(ctx context.Context, id shared.
 }
 
 // UpdateBlockInfo updates the block information for a payment.
-func (s *PaymentServiceImpl) UpdateBlockInfo(ctx context.Context, id shared.PaymentID, blockNumber int64, blockHash string) error {
+func (s *PaymentServiceImpl) UpdateBlockInfo(
+	ctx context.Context,
+	id shared.PaymentID,
+	blockNumber int64,
+	blockHash string,
+) error {
 	if id == "" {
 		return NewPaymentError(shared.ErrCodeValidationFailed, "payment ID cannot be empty", nil)
 	}
@@ -188,7 +195,12 @@ func (s *PaymentServiceImpl) UpdateBlockInfo(ctx context.Context, id shared.Paym
 }
 
 // UpdateNetworkFee updates the network fee for a payment.
-func (s *PaymentServiceImpl) UpdateNetworkFee(ctx context.Context, id shared.PaymentID, fee *shared.Money, currency shared.CryptoCurrency) error {
+func (s *PaymentServiceImpl) UpdateNetworkFee(
+	ctx context.Context,
+	id shared.PaymentID,
+	fee *shared.Money,
+	currency shared.CryptoCurrency,
+) error {
 	if id == "" {
 		return NewPaymentError(shared.ErrCodeValidationFailed, "payment ID cannot be empty", nil)
 	}
@@ -213,7 +225,10 @@ func (s *PaymentServiceImpl) UpdateNetworkFee(ctx context.Context, id shared.Pay
 }
 
 // ListPaymentsByInvoice retrieves all payments for an invoice.
-func (s *PaymentServiceImpl) ListPaymentsByInvoice(ctx context.Context, invoiceID shared.InvoiceID) ([]*Payment, error) {
+func (s *PaymentServiceImpl) ListPaymentsByInvoice(
+	ctx context.Context,
+	invoiceID shared.InvoiceID,
+) ([]*Payment, error) {
 	if invoiceID == "" {
 		return nil, NewPaymentError(shared.ErrCodeValidationFailed, "invoice ID cannot be empty", nil)
 	}

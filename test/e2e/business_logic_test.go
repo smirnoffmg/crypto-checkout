@@ -2,14 +2,13 @@ package e2e_test
 
 import (
 	"bytes"
+	"crypto-checkout/test/testutil"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"testing"
 	"time"
-
-	"crypto-checkout/test/testutil"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +43,7 @@ func TestInvoiceCreationWithPaymentTolerance(t *testing.T) {
 
 	// Step 2: Verify invoice state and business invariants
 	verifyInvoiceState(t, baseURL, invoiceID, "created", map[string]interface{}{
-		"total":      "32.39", // 29.99 + (29.99 * 0.08) = 32.39
+		"total":      "32.39",
 		"tax_amount": "2.40",
 		"subtotal":   "29.99",
 	})
@@ -211,7 +210,11 @@ func TestConcurrentInvoiceCreation(t *testing.T) {
 		case <-done:
 			completedCount++
 		case <-timeout:
-			t.Fatalf("Test timed out after 10 seconds. Only %d/%d goroutines completed", completedCount, concurrentInvoices)
+			t.Fatalf(
+				"Test timed out after 10 seconds. Only %d/%d goroutines completed",
+				completedCount,
+				concurrentInvoices,
+			)
 		}
 	}
 
@@ -340,8 +343,12 @@ func createInvoiceConcurrent(t *testing.T, baseURL string, req map[string]interf
 	return invoiceID
 }
 
-func verifyInvoiceState(t *testing.T, baseURL, invoiceID, expectedStatus string, expectedValues map[string]interface{}) {
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, nil)
+func verifyInvoiceState(
+	t *testing.T,
+	baseURL, invoiceID, expectedStatus string,
+	expectedValues map[string]interface{},
+) {
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer sk_test_abc123def456")
 
@@ -370,7 +377,7 @@ func verifyInvoiceState(t *testing.T, baseURL, invoiceID, expectedStatus string,
 }
 
 func verifyPaymentToleranceSettings(t *testing.T, baseURL, invoiceID string, expectedTolerance map[string]interface{}) {
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer sk_test_abc123def456")
 
@@ -406,7 +413,7 @@ func verifyPaymentToleranceSettings(t *testing.T, baseURL, invoiceID string, exp
 func testInvoiceExpirationHandling(t *testing.T, baseURL, invoiceID string) {
 	// Test that expired invoices are properly handled
 	// This would test the expiration logic if it's implemented
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer sk_test_abc123def456")
 
@@ -461,11 +468,11 @@ func cancelInvoice(t *testing.T, baseURL, invoiceID string, cancelReq map[string
 func triggerExpirationProcessing(t *testing.T, baseURL string) {
 	// This would typically be a background job, but for testing we need to trigger it manually
 	// In a real implementation, this would be called by a scheduled job or cron
-	
+
 	// For now, we'll create a simple HTTP endpoint to trigger expiration processing
 	// This is a test-only approach - in production this would be handled by background jobs
-	
-	req, err := http.NewRequest("POST", baseURL+"/api/v1/admin/process-expired-invoices", nil)
+
+	req, err := http.NewRequest("POST", baseURL+"/api/v1/admin/process-expired-invoices", http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer sk_test_abc123def456")
 

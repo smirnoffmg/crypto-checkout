@@ -1,10 +1,9 @@
 package database_test
 
 import (
-	"testing"
-
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/pkg/config"
+	"testing"
 )
 
 func TestConnection(t *testing.T) {

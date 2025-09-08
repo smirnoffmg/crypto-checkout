@@ -1,9 +1,8 @@
 package invoice_test
 
 import (
-	"testing"
-
 	"crypto-checkout/internal/domain/invoice"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 )

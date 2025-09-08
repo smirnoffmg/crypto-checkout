@@ -2,11 +2,10 @@ package database
 
 import (
 	"context"
-	"errors"
-	"fmt"
-
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/domain/shared"
+	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -48,7 +47,6 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*payment.P
 	err := r.db.WithContext(ctx).
 		Where("id = ?", id).
 		First(&model).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, payment.ErrPaymentNotFound
@@ -72,7 +70,6 @@ func (r *PaymentRepository) FindByTransactionHash(
 	err := r.db.WithContext(ctx).
 		Where("tx_hash = ?", hash.String()).
 		First(&model).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, payment.ErrPaymentNotFound
@@ -84,7 +81,10 @@ func (r *PaymentRepository) FindByTransactionHash(
 }
 
 // FindByAddress retrieves all payments for a given address.
-func (r *PaymentRepository) FindByAddress(ctx context.Context, address *payment.PaymentAddress) ([]*payment.Payment, error) {
+func (r *PaymentRepository) FindByAddress(
+	ctx context.Context,
+	address *payment.PaymentAddress,
+) ([]*payment.Payment, error) {
 	if address == nil {
 		return nil, payment.ErrInvalidPayment
 	}
@@ -93,7 +93,6 @@ func (r *PaymentRepository) FindByAddress(ctx context.Context, address *payment.
 	err := r.db.WithContext(ctx).
 		Where("to_address = ?", address.String()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find payments by address: %w", err)
 	}
@@ -110,7 +109,6 @@ func (r *PaymentRepository) FindByStatus(
 	err := r.db.WithContext(ctx).
 		Where("status = ?", status.String()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find payments by status: %w", err)
 	}
@@ -129,7 +127,6 @@ func (r *PaymentRepository) FindPending(ctx context.Context) ([]*payment.Payment
 	err := r.db.WithContext(ctx).
 		Where("status IN ?", pendingStatuses).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find pending payments: %w", err)
 	}
@@ -143,7 +140,6 @@ func (r *PaymentRepository) FindConfirmed(ctx context.Context) ([]*payment.Payme
 	err := r.db.WithContext(ctx).
 		Where("status = ?", payment.StatusConfirmed.String()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find confirmed payments: %w", err)
 	}
@@ -157,7 +153,6 @@ func (r *PaymentRepository) FindFailed(ctx context.Context) ([]*payment.Payment,
 	err := r.db.WithContext(ctx).
 		Where("status = ?", payment.StatusFailed.String()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find failed payments: %w", err)
 	}
@@ -171,7 +166,6 @@ func (r *PaymentRepository) FindOrphaned(ctx context.Context) ([]*payment.Paymen
 	err := r.db.WithContext(ctx).
 		Where("status = ?", payment.StatusOrphaned.String()).
 		Find(&models).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find orphaned payments: %w", err)
 	}
@@ -231,7 +225,6 @@ func (r *PaymentRepository) Exists(ctx context.Context, id string) (bool, error)
 		Model(&PaymentModel{}).
 		Where("id = ?", id).
 		Count(&count).Error
-
 	if err != nil {
 		return false, fmt.Errorf("failed to check payment existence: %w", err)
 	}
@@ -251,7 +244,6 @@ func (r *PaymentRepository) CountByStatus(ctx context.Context) (map[payment.Paym
 		Select("status, COUNT(*) as count").
 		Group("status").
 		Find(&results).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to count payments by status: %w", err)
 	}
@@ -381,8 +373,8 @@ func (r *PaymentRepository) modelToDomain(model *PaymentModel) (*payment.Payment
 // modelsToDomain converts multiple database models to domain payments.
 func (r *PaymentRepository) modelsToDomain(models []PaymentModel) ([]*payment.Payment, error) {
 	payments := make([]*payment.Payment, len(models))
-	for i, model := range models {
-		p, err := r.modelToDomain(&model)
+	for i := range models {
+		p, err := r.modelToDomain(&models[i])
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert model %d: %w", i, err)
 		}

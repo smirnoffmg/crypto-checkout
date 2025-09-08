@@ -2,6 +2,11 @@ package testutil
 
 import (
 	"context"
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/payment"
+	"crypto-checkout/internal/infrastructure/database"
+	"crypto-checkout/internal/presentation/web"
+	"crypto-checkout/pkg/config"
 	"net"
 	"net/http"
 	"testing"
@@ -10,12 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/payment"
-	"crypto-checkout/internal/infrastructure/database"
-	"crypto-checkout/internal/presentation/web"
-	"crypto-checkout/pkg/config"
 )
 
 const (

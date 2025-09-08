@@ -30,7 +30,14 @@ func (s InvoiceStatus) String() string {
 // IsValid returns true if the invoice status is valid.
 func (s InvoiceStatus) IsValid() bool {
 	switch s {
-	case StatusCreated, StatusPending, StatusPartial, StatusConfirming, StatusPaid, StatusExpired, StatusCancelled, StatusRefunded:
+	case StatusCreated,
+		StatusPending,
+		StatusPartial,
+		StatusConfirming,
+		StatusPaid,
+		StatusExpired,
+		StatusCancelled,
+		StatusRefunded:
 		return true
 	default:
 		return false
@@ -141,7 +148,15 @@ func (e AuditEvent) String() string {
 // IsValid returns true if the audit event is valid.
 func (e AuditEvent) IsValid() bool {
 	switch e {
-	case AuditEventCreated, AuditEventViewed, AuditEventPaymentDetected, AuditEventPaymentConfirmed, AuditEventPaid, AuditEventExpired, AuditEventCancelled, AuditEventRefunded, AuditEventStatusChanged:
+	case AuditEventCreated,
+		AuditEventViewed,
+		AuditEventPaymentDetected,
+		AuditEventPaymentConfirmed,
+		AuditEventPaid,
+		AuditEventExpired,
+		AuditEventCancelled,
+		AuditEventRefunded,
+		AuditEventStatusChanged:
 		return true
 	default:
 		return false

@@ -13,26 +13,26 @@ const (
 
 // CreateInvoiceRequest represents the request payload for creating an invoice.
 type CreateInvoiceRequest struct {
-	Title             string                   `binding:"required" json:"title"`
-	Description       string                   `json:"description"`
+	Title             string                   `binding:"required"       json:"title"`
+	Description       string                   `                         json:"description"`
 	Items             []InvoiceItemRequest     `binding:"required,min=1" json:"items"`
-	Tax               *string                  `json:"tax,omitempty"` // Fixed tax amount (deprecated, use tax_rate)
-	TaxRate           string                   `json:"tax_rate"`      // Tax rate as decimal (e.g., "0.10" for 10%)
-	Currency          string                   `json:"currency,omitempty"`
-	CryptoCurrency    string                   `json:"crypto_currency,omitempty"`
-	PriceLockDuration *int                     `json:"price_lock_duration,omitempty"`
-	ExpiresIn         *int                     `json:"expires_in,omitempty"`
-	PaymentTolerance  *PaymentToleranceRequest `json:"payment_tolerance,omitempty"`
-	WebhookURL        *string                  `json:"webhook_url,omitempty"`
-	ReturnURL         *string                  `json:"return_url,omitempty"`
-	CancelURL         *string                  `json:"cancel_url,omitempty"`
-	Metadata          map[string]interface{}   `json:"metadata,omitempty"`
+	Tax               *string                  `                         json:"tax,omitempty"` // Fixed tax amount (deprecated, use tax_rate)
+	TaxRate           string                   `                         json:"tax_rate"`      // Tax rate as decimal (e.g., "0.10" for 10%)
+	Currency          string                   `                         json:"currency,omitempty"`
+	CryptoCurrency    string                   `                         json:"crypto_currency,omitempty"`
+	PriceLockDuration *int                     `                         json:"price_lock_duration,omitempty"`
+	ExpiresIn         *int                     `                         json:"expires_in,omitempty"`
+	PaymentTolerance  *PaymentToleranceRequest `                         json:"payment_tolerance,omitempty"`
+	WebhookURL        *string                  `                         json:"webhook_url,omitempty"`
+	ReturnURL         *string                  `                         json:"return_url,omitempty"`
+	CancelURL         *string                  `                         json:"cancel_url,omitempty"`
+	Metadata          map[string]interface{}   `                         json:"metadata,omitempty"`
 }
 
 // InvoiceItemRequest represents an invoice item in the request.
 type InvoiceItemRequest struct {
 	Name        string `binding:"required" json:"name"`
-	Description string `json:"description"`
+	Description string `                   json:"description"`
 	Quantity    string `binding:"required" json:"quantity"`
 	UnitPrice   string `binding:"required" json:"unit_price"`
 }
@@ -83,9 +83,9 @@ type InvoiceItemResponse struct {
 
 // TokenRequest represents the request payload for generating JWT tokens.
 type TokenRequest struct {
-	GrantType string   `binding:"required" json:"grant_type"`
-	APIKey    string   `binding:"required" json:"api_key"`
-	Scope     []string `binding:"required,min=1" json:"scope"`
+	GrantType string   `binding:"required"                 json:"grant_type"`
+	APIKey    string   `binding:"required"                 json:"api_key"`
+	Scope     []string `binding:"required,min=1"           json:"scope"`
 	ExpiresIn int64    `binding:"required,min=1,max=86400" json:"expires_in"` // 1 second to 24 hours
 }
 
@@ -146,7 +146,7 @@ type PublicInvoiceStatusResponse struct {
 
 // ListInvoicesRequest represents the request parameters for listing invoices.
 type ListInvoicesRequest struct {
-	Page     int    `form:"page,default=1" binding:"min=1"`
+	Page     int    `form:"page,default=1"   binding:"min=1"`
 	Limit    int    `form:"limit,default=20" binding:"min=1,max=100"`
 	Status   string `form:"status"`
 	Merchant string `form:"merchant"`

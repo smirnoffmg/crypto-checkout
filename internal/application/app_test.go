@@ -2,6 +2,8 @@ package application_test
 
 import (
 	"context"
+	"crypto-checkout/internal/application"
+	"crypto-checkout/pkg/config"
 	"fmt"
 	"testing"
 	"time"
@@ -11,9 +13,6 @@ import (
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
-
-	"crypto-checkout/internal/application"
-	"crypto-checkout/pkg/config"
 )
 
 func TestApplication(t *testing.T) {

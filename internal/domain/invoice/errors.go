@@ -1,9 +1,8 @@
 package invoice
 
 import (
-	"errors"
-
 	"crypto-checkout/internal/domain/shared"
+	"errors"
 )
 
 // Invoice-specific domain errors

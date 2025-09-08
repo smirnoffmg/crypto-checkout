@@ -2,10 +2,9 @@ package invoice
 
 import (
 	"context"
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"time"
-
-	"crypto-checkout/internal/domain/shared"
 )
 
 // InvoiceService defines the interface for invoice business operations.
@@ -132,7 +131,11 @@ func (ps PaymentStatus) String() string {
 // IsValid returns true if the payment status is valid.
 func (ps PaymentStatus) IsValid() bool {
 	switch ps {
-	case PaymentStatusDetected, PaymentStatusConfirming, PaymentStatusConfirmed, PaymentStatusFailed, PaymentStatusOrphaned:
+	case PaymentStatusDetected,
+		PaymentStatusConfirming,
+		PaymentStatusConfirmed,
+		PaymentStatusFailed,
+		PaymentStatusOrphaned:
 		return true
 	default:
 		return false

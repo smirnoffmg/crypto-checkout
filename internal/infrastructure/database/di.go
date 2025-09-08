@@ -2,11 +2,10 @@ package database
 
 import (
 	"context"
-	"fmt"
-
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/pkg/config"
+	"fmt"
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"

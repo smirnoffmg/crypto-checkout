@@ -2,13 +2,12 @@ package e2e_test
 
 import (
 	"bytes"
+	"crypto-checkout/test/testutil"
 	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
 	"time"
-
-	"crypto-checkout/test/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,7 +65,12 @@ func TestAPIComplianceHealthCheck(t *testing.T) {
 	}
 
 	// Log response details for debugging
-	t.Logf("Health check response: Status=%d, Content-Type=%s, Body=%s", resp.StatusCode, actualContentType, string(body))
+	t.Logf(
+		"Health check response: Status=%d, Content-Type=%s, Body=%s",
+		resp.StatusCode,
+		actualContentType,
+		string(body),
+	)
 }
 
 // TestAPIComplianceErrorHandling tests error response format compliance.
@@ -122,7 +126,7 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 			var req *http.Request
 			switch tt.method {
 			case "GET":
-				req, err = http.NewRequest("GET", baseURL+tt.path, nil)
+				req, err = http.NewRequest("GET", baseURL+tt.path, http.NoBody)
 			case "POST":
 				// Send invalid JSON for POST test
 				req, err = http.NewRequest("POST", baseURL+tt.path, bytes.NewBufferString("invalid json"))
@@ -142,7 +146,6 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 
 			client := &http.Client{}
 			resp, err = client.Do(req)
-
 			if err != nil {
 				t.Fatalf("Failed to make request to %s %s: %v", tt.method, tt.path, err)
 			}
@@ -156,11 +159,17 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 
 			// Check status code with detailed error
 			if resp.StatusCode != tt.expectedStatus {
-				t.Errorf("Status code mismatch for %s %s\nExpected: %d %s\nActual: %d %s\nResponse body: %s\nHeaders: %v",
-					tt.method, tt.path,
-					tt.expectedStatus, http.StatusText(tt.expectedStatus),
-					resp.StatusCode, http.StatusText(resp.StatusCode),
-					string(body), resp.Header)
+				t.Errorf(
+					"Status code mismatch for %s %s\nExpected: %d %s\nActual: %d %s\nResponse body: %s\nHeaders: %v",
+					tt.method,
+					tt.path,
+					tt.expectedStatus,
+					http.StatusText(tt.expectedStatus),
+					resp.StatusCode,
+					http.StatusText(resp.StatusCode),
+					string(body),
+					resp.Header,
+				)
 			}
 
 			if tt.expectedError {
@@ -168,7 +177,13 @@ func TestAPIComplianceErrorHandling(t *testing.T) {
 				var errorResponse map[string]interface{}
 				if unmarshalErr := json.Unmarshal(body, &errorResponse); unmarshalErr == nil {
 					// Current implementation error response structure
-					assert.Contains(t, errorResponse, "error", "Error response should contain 'error' field. Response: %s", string(body))
+					assert.Contains(
+						t,
+						errorResponse,
+						"error",
+						"Error response should contain 'error' field. Response: %s",
+						string(body),
+					)
 					t.Logf("Full error response: %+v", errorResponse)
 
 					// TODO: When API.md error structure is implemented, check for:
@@ -289,7 +304,7 @@ func TestAPIComplianceContentTypes(t *testing.T) {
 			var req *http.Request
 			switch tt.method {
 			case "GET":
-				req, requestErr = http.NewRequest("GET", baseURL+tt.path, nil)
+				req, requestErr = http.NewRequest("GET", baseURL+tt.path, http.NoBody)
 			case "POST":
 				req, requestErr = http.NewRequest("POST", baseURL+tt.path, bytes.NewBuffer(reqBody))
 				req.Header.Set("Content-Type", "application/json")
@@ -322,20 +337,31 @@ func TestAPIComplianceContentTypes(t *testing.T) {
 
 			// Check status code with detailed error
 			if resp.StatusCode != tt.expectedStatus {
-				t.Errorf("Status code mismatch for %s %s\nExpected: %d %s\nActual: %d %s\nResponse body: %s\nHeaders: %v",
-					tt.method, tt.path,
-					tt.expectedStatus, http.StatusText(tt.expectedStatus),
-					resp.StatusCode, http.StatusText(resp.StatusCode),
-					string(body), resp.Header)
+				t.Errorf(
+					"Status code mismatch for %s %s\nExpected: %d %s\nActual: %d %s\nResponse body: %s\nHeaders: %v",
+					tt.method,
+					tt.path,
+					tt.expectedStatus,
+					http.StatusText(tt.expectedStatus),
+					resp.StatusCode,
+					http.StatusText(resp.StatusCode),
+					string(body),
+					resp.Header,
+				)
 			}
 
 			// Check content type with detailed error
 			actualContentType := resp.Header.Get("Content-Type")
 			if actualContentType != tt.expectedType {
-				t.Errorf("Content-Type mismatch for %s %s\nExpected: %s\nActual: %s\nResponse body: %s\nAll headers: %v",
-					tt.method, tt.path,
-					tt.expectedType, actualContentType,
-					string(body), resp.Header)
+				t.Errorf(
+					"Content-Type mismatch for %s %s\nExpected: %s\nActual: %s\nResponse body: %s\nAll headers: %v",
+					tt.method,
+					tt.path,
+					tt.expectedType,
+					actualContentType,
+					string(body),
+					resp.Header,
+				)
 			}
 
 			// Log response details for debugging
@@ -410,7 +436,7 @@ func makeTestRequest(t *testing.T, baseURL, method, path string, expectedStatus 
 	var req *http.Request
 	switch method {
 	case "GET":
-		req, requestErr = http.NewRequest("GET", baseURL+path, nil)
+		req, requestErr = http.NewRequest("GET", baseURL+path, http.NoBody)
 	case "POST":
 		if path == "/api/v1/invoices" {
 			if expectedStatus == http.StatusCreated {
@@ -441,33 +467,6 @@ func makeTestRequest(t *testing.T, baseURL, method, path string, expectedStatus 
 	t.Logf("Made %s request to %s%s, got status: %d", method, baseURL, path, resp.StatusCode)
 
 	return resp
-}
-
-// makeValidInvoiceRequest makes a valid invoice creation request.
-func makeValidInvoiceRequest(t *testing.T, baseURL, path string) (*http.Response, error) {
-	t.Helper()
-
-	createReq := map[string]interface{}{
-		"items": []map[string]interface{}{
-			{
-				"description": "Test Item",
-				"unit_price":  "10.00",
-				"quantity":    "1",
-			},
-		},
-		"tax_rate": "0.10",
-	}
-	reqBody, marshalErr := json.Marshal(createReq)
-	if marshalErr != nil {
-		t.Fatalf("Failed to marshal request: %v", marshalErr)
-	}
-	return http.Post(baseURL+path, "application/json", bytes.NewBuffer(reqBody))
-}
-
-// makeInvalidInvoiceRequest makes an invalid invoice creation request.
-func makeInvalidInvoiceRequest(t *testing.T, baseURL, path string) (*http.Response, error) {
-	t.Helper()
-	return http.Post(baseURL+path, "application/json", bytes.NewBufferString("invalid json"))
 }
 
 // makeValidInvoiceRequestWithAuth makes a valid invoice creation request with optional auth.
@@ -596,27 +595,52 @@ func TestAPIComplianceInvoiceStructure(t *testing.T) {
 	}
 
 	// Verify status is created (transitions to pending after being viewed)
-	require.Equal(t, "created", response["status"], "New invoice should have created status. Actual status: %v", response["status"])
+	require.Equal(
+		t,
+		"created",
+		response["status"],
+		"New invoice should have created status. Actual status: %v",
+		response["status"],
+	)
 	t.Logf("Invoice status verified: %+v", response)
 
 	// Verify numeric fields are strings (as per API.md)
-	require.IsType(t, "", response["subtotal"], "Subtotal should be string. Actual type: %T, Value: %v", response["subtotal"], response["subtotal"])
-	require.IsType(t, "", response["tax_amount"], "Tax amount should be string. Actual type: %T, Value: %v", response["tax_amount"], response["tax_amount"])
-	require.IsType(t, "", response["total"], "Total should be string. Actual type: %T, Value: %v", response["total"], response["total"])
-	require.IsType(t, "", response["tax_rate"], "Tax rate should be string. Actual type: %T, Value: %v", response["tax_rate"], response["tax_rate"])
+	require.IsType(
+		t,
+		"",
+		response["subtotal"],
+		"Subtotal should be string. Actual type: %T, Value: %v",
+		response["subtotal"],
+		response["subtotal"],
+	)
+	require.IsType(
+		t,
+		"",
+		response["tax_amount"],
+		"Tax amount should be string. Actual type: %T, Value: %v",
+		response["tax_amount"],
+		response["tax_amount"],
+	)
+	require.IsType(
+		t,
+		"",
+		response["total"],
+		"Total should be string. Actual type: %T, Value: %v",
+		response["total"],
+		response["total"],
+	)
+	require.IsType(
+		t,
+		"",
+		response["tax_rate"],
+		"Tax rate should be string. Actual type: %T, Value: %v",
+		response["tax_rate"],
+		response["tax_rate"],
+	)
 	t.Logf("All numeric fields verified as strings")
 
 	// Log full response for debugging
 	t.Logf("Invoice structure test response: %+v", response)
-}
-
-// getMapKeys returns the keys of a map[string]interface{} for debugging purposes
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // waitForServerReady waits for the server to be ready by making health check requests.

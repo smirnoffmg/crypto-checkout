@@ -1,9 +1,8 @@
 package invoice
 
 import (
-	"time"
-
 	"crypto-checkout/internal/domain/shared"
+	"time"
 )
 
 // InvoiceHelpers provides utility functions for invoice operations.
@@ -18,18 +17,19 @@ func CalculateRequiredConfirmations(amount *shared.Money) (*shared.ConfirmationC
 	// In a real implementation, this would be more sophisticated
 	amountValue := amount.Amount()
 
-	var requiredConfirmations int
 	threshold100, _ := shared.NewMoney("100", shared.CurrencyUSD)
 	threshold1000, _ := shared.NewMoney("1000", shared.CurrencyUSD)
 	threshold10000, _ := shared.NewMoney("10000", shared.CurrencyUSD)
 
-	if amountValue.LessThan(threshold100.Amount()) {
+	var requiredConfirmations int
+	switch {
+	case amountValue.LessThan(threshold100.Amount()):
 		requiredConfirmations = 1
-	} else if amountValue.LessThan(threshold1000.Amount()) {
+	case amountValue.LessThan(threshold1000.Amount()):
 		requiredConfirmations = 3
-	} else if amountValue.LessThan(threshold10000.Amount()) {
+	case amountValue.LessThan(threshold10000.Amount()):
 		requiredConfirmations = 6
-	} else {
+	default:
 		requiredConfirmations = 12
 	}
 

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"crypto-checkout/internal/presentation/web"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,8 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/internal/presentation/web"
 )
 
 func TestListInvoicesEndpoint(t *testing.T) {
@@ -25,7 +24,7 @@ func TestListInvoicesEndpoint(t *testing.T) {
 
 	t.Run("ListInvoices_Success", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices", http.NoBody)
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		// When
@@ -47,7 +46,7 @@ func TestListInvoicesEndpoint(t *testing.T) {
 
 	t.Run("ListInvoices_WithPagination", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices?page=2&limit=10", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices?page=2&limit=10", http.NoBody)
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		// When
@@ -67,7 +66,7 @@ func TestListInvoicesEndpoint(t *testing.T) {
 
 	t.Run("ListInvoices_WithStatusFilter", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices?status=pending", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices?status=pending", http.NoBody)
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		// When
@@ -89,7 +88,7 @@ func TestListInvoicesEndpoint(t *testing.T) {
 
 	t.Run("ListInvoices_Unauthorized", func(t *testing.T) {
 		// Given
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices", http.NoBody)
 		// No Authorization header
 
 		// When

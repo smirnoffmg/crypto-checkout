@@ -2,15 +2,14 @@ package application
 
 import (
 	"context"
-
-	"go.uber.org/fx"
-	"go.uber.org/zap"
-
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/payment"
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/internal/presentation/web"
 	"crypto-checkout/pkg/config"
+
+	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
 func GetApp() *fx.App {

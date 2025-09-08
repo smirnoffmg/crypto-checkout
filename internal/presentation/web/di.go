@@ -3,10 +3,12 @@ package web
 
 import (
 	"context"
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/payment"
+	"crypto-checkout/pkg/config"
 	"embed"
 	"errors"
 	"fmt"
-
 	"net/http"
 	"os"
 	"strings"
@@ -15,10 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/payment"
-	"crypto-checkout/pkg/config"
 )
 
 const (

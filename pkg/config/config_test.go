@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"crypto-checkout/pkg/config"
 	"fmt"
 	"os"
 	"strings"
@@ -8,8 +9,6 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/pkg/config"
 )
 
 func TestConfig(t *testing.T) {

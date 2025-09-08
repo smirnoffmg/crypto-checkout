@@ -2,12 +2,11 @@ package e2e_test
 
 import (
 	"bytes"
+	"crypto-checkout/test/testutil"
 	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
-
-	"crypto-checkout/test/testutil"
 
 	"github.com/stretchr/testify/require"
 )
@@ -240,7 +239,7 @@ func TestMerchantAPIGetInvoice(t *testing.T) {
 
 	// Now get the invoice
 	// Get invoice with authentication
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/"+invoiceID, http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -287,7 +286,7 @@ func TestMerchantAPIGetInvoiceNotFound(t *testing.T) {
 	baseURL := testutil.SetupTestApp(t)
 
 	// Create request with authentication
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/non-existent-id", nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices/non-existent-id", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -405,7 +404,11 @@ func TestMerchantAPICancelInvoice(t *testing.T) {
 		"reason": "Test cancellation",
 	}
 	cancelReqBody, _ := json.Marshal(cancelReq)
-	cancelHTTPReq, err := http.NewRequest("POST", baseURL+"/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(cancelReqBody))
+	cancelHTTPReq, err := http.NewRequest(
+		"POST",
+		baseURL+"/api/v1/invoices/"+invoiceID+"/cancel",
+		bytes.NewBuffer(cancelReqBody),
+	)
 	if err != nil {
 		t.Fatalf("Failed to create cancel request: %v", err)
 	}
@@ -437,7 +440,7 @@ func TestMerchantAPIListInvoices(t *testing.T) {
 	baseURL := testutil.SetupTestApp(t)
 
 	// Create request with authentication
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices", nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/invoices", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -468,7 +471,7 @@ func TestMerchantAPIGetAnalytics(t *testing.T) {
 	baseURL := testutil.SetupTestApp(t)
 
 	// Create request with authentication
-	req, err := http.NewRequest("GET", baseURL+"/api/v1/analytics", nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/v1/analytics", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto-checkout/internal/domain/invoice"
 	"encoding/json"
 	"net/http"
 	"sync"
@@ -9,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-
-	"crypto-checkout/internal/domain/invoice"
 )
 
 const (
@@ -335,10 +334,10 @@ func (h *Handler) serveWS(c *gin.Context) {
 }
 
 // BroadcastInvoiceUpdate broadcasts an invoice update to all connected clients.
-func (h *Handler) BroadcastInvoiceUpdate(invoice *invoice.Invoice) {
+func (h *Handler) BroadcastInvoiceUpdate(inv *invoice.Invoice) {
 	update := InvoiceStatusUpdate{
-		InvoiceID: string(invoice.ID()),
-		Status:    invoice.Status().String(),
+		InvoiceID: string(inv.ID()),
+		Status:    inv.Status().String(),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -348,7 +347,7 @@ func (h *Handler) BroadcastInvoiceUpdate(invoice *invoice.Invoice) {
 		return
 	}
 
-	h.hub.BroadcastToInvoice(string(invoice.ID()), message)
+	h.hub.BroadcastToInvoice(string(inv.ID()), message)
 }
 
 // InvoiceStatusUpdate represents a WebSocket message for invoice status updates.

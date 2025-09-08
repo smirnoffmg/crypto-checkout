@@ -1,13 +1,12 @@
 package database
 
 import (
+	"crypto-checkout/internal/domain/invoice"
+	"crypto-checkout/internal/domain/shared"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
-
-	"crypto-checkout/internal/domain/invoice"
-	"crypto-checkout/internal/domain/shared"
 )
 
 // InvoiceMapper handles conversion between domain entities and database models.
@@ -24,36 +23,82 @@ func (m *InvoiceMapper) ToDomain(model *InvoiceModel) (*invoice.Invoice, error) 
 		return nil, errors.New("invoice model cannot be nil")
 	}
 
-	// Parse items from JSONB
-	var items []*invoice.InvoiceItem
-	if model.Items != "" {
-		var itemData []map[string]interface{}
-		if err := json.Unmarshal([]byte(model.Items), &itemData); err != nil {
-			return nil, fmt.Errorf("failed to parse items JSON: %w", err)
-		}
-
-		items = make([]*invoice.InvoiceItem, len(itemData))
-		for i, itemMap := range itemData {
-			name, _ := itemMap["name"].(string)
-			description, _ := itemMap["description"].(string)
-			quantity, _ := itemMap["quantity"].(string)
-			unitPriceStr, _ := itemMap["unit_price"].(string)
-
-			unitPrice, err := shared.NewMoney(unitPriceStr, shared.CurrencyUSD)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create unit price: %w", err)
-			}
-
-			invoiceItem, err := invoice.NewInvoiceItem(name, description, quantity, unitPrice)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create invoice item: %w", err)
-			}
-
-			items[i] = invoiceItem
-		}
+	items, err := m.parseInvoiceItems(model.Items)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create pricing
+	pricing, err := m.createInvoicePricing(model)
+	if err != nil {
+		return nil, err
+	}
+
+	paymentAddress, err := m.createPaymentAddress(model.PaymentAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	exchangeRate, err := m.createExchangeRate(model)
+	if err != nil {
+		return nil, err
+	}
+
+	paymentTolerance, err := m.createPaymentTolerance(model.PaymentTolerance)
+	if err != nil {
+		return nil, err
+	}
+
+	expiration := m.createExpiration(model.ExpiresAt)
+
+	inv, err := m.buildInvoice(model, items, pricing, paymentAddress, exchangeRate, paymentTolerance, expiration)
+	if err != nil {
+		return nil, err
+	}
+
+	m.setInvoiceProperties(inv, model)
+	return inv, nil
+}
+
+// parseInvoiceItems parses invoice items from JSONB.
+func (m *InvoiceMapper) parseInvoiceItems(itemsJSON string) ([]*invoice.InvoiceItem, error) {
+	if itemsJSON == "" {
+		return []*invoice.InvoiceItem{}, nil
+	}
+
+	var itemData []map[string]interface{}
+	if err := json.Unmarshal([]byte(itemsJSON), &itemData); err != nil {
+		return nil, fmt.Errorf("failed to parse items JSON: %w", err)
+	}
+
+	items := make([]*invoice.InvoiceItem, len(itemData))
+	for i, itemMap := range itemData {
+		item, err := m.createInvoiceItem(itemMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create invoice item: %w", err)
+		}
+		items[i] = item
+	}
+
+	return items, nil
+}
+
+// createInvoiceItem creates an invoice item from a map.
+func (m *InvoiceMapper) createInvoiceItem(itemMap map[string]interface{}) (*invoice.InvoiceItem, error) {
+	name, _ := itemMap["name"].(string)
+	description, _ := itemMap["description"].(string)
+	quantity, _ := itemMap["quantity"].(string)
+	unitPriceStr, _ := itemMap["unit_price"].(string)
+
+	unitPrice, err := shared.NewMoney(unitPriceStr, shared.CurrencyUSD)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create unit price: %w", err)
+	}
+
+	return invoice.NewInvoiceItem(name, description, quantity, unitPrice)
+}
+
+// createInvoicePricing creates invoice pricing from model.
+func (m *InvoiceMapper) createInvoicePricing(model *InvoiceModel) (*invoice.InvoicePricing, error) {
 	subtotal, err := shared.NewMoney(model.Subtotal, shared.CurrencyUSD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subtotal: %w", err)
@@ -69,38 +114,54 @@ func (m *InvoiceMapper) ToDomain(model *InvoiceModel) (*invoice.Invoice, error) 
 		return nil, fmt.Errorf("failed to create total: %w", err)
 	}
 
-	pricing, err := invoice.NewInvoicePricing(subtotal, tax, total)
+	return invoice.NewInvoicePricing(subtotal, tax, total)
+}
+
+// createPaymentAddress creates payment address from model.
+func (m *InvoiceMapper) createPaymentAddress(paymentAddressStr *string) (*shared.PaymentAddress, error) {
+	if paymentAddressStr == nil {
+		return nil, nil
+	}
+
+	paymentAddress, err := shared.NewPaymentAddress(*paymentAddressStr, shared.NetworkTron)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pricing: %w", err)
+		return nil, fmt.Errorf("failed to create payment address: %w", err)
 	}
 
-	// Create payment address if present
-	var paymentAddress *shared.PaymentAddress
-	if model.PaymentAddress != nil {
-		paymentAddress, err = shared.NewPaymentAddress(*model.PaymentAddress, shared.NetworkTron)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create payment address: %w", err)
-		}
-	}
+	return paymentAddress, nil
+}
 
-	// Deserialize exchange rate from JSONB
+// createExchangeRate creates exchange rate from model.
+func (m *InvoiceMapper) createExchangeRate(model *InvoiceModel) (*shared.ExchangeRate, error) {
 	exchangeRate, err := m.DeserializeExchangeRate(model.ExchangeRate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deserialize exchange rate: %w", err)
 	}
+
 	if exchangeRate == nil {
 		// Fallback to default if not present
-		exchangeRate, err = shared.NewExchangeRate("1.0", shared.CurrencyUSD, shared.CryptoCurrency(model.CryptoCurrency), "default_provider", 30*time.Minute)
+		exchangeRate, err = shared.NewExchangeRate(
+			"1.0",
+			shared.CurrencyUSD,
+			shared.CryptoCurrency(model.CryptoCurrency),
+			"default_provider",
+			30*time.Minute,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default exchange rate: %w", err)
 		}
 	}
 
-	// Deserialize payment tolerance from JSONB
-	paymentTolerance, err := m.DeserializePaymentTolerance(model.PaymentTolerance)
+	return exchangeRate, nil
+}
+
+// createPaymentTolerance creates payment tolerance from model.
+func (m *InvoiceMapper) createPaymentTolerance(toleranceJSON string) (*invoice.PaymentTolerance, error) {
+	paymentTolerance, err := m.DeserializePaymentTolerance(toleranceJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deserialize payment tolerance: %w", err)
 	}
+
 	if paymentTolerance == nil {
 		// Fallback to default if not present
 		paymentTolerance, err = invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
@@ -109,17 +170,29 @@ func (m *InvoiceMapper) ToDomain(model *InvoiceModel) (*invoice.Invoice, error) 
 		}
 	}
 
-	// Create expiration
-	var expiration *invoice.InvoiceExpiration
-	if model.ExpiresAt != nil {
-		// Use unsafe version to allow loading expired invoices from database
-		expiration = invoice.NewInvoiceExpirationWithTimeUnsafe(*model.ExpiresAt)
-	} else {
-		expiration = invoice.NewInvoiceExpiration(30 * time.Minute)
-	}
+	return paymentTolerance, nil
+}
 
-	// Create invoice with validation
-	inv, err := invoice.NewInvoice(
+// createExpiration creates expiration from model.
+func (m *InvoiceMapper) createExpiration(expiresAt *time.Time) *invoice.InvoiceExpiration {
+	if expiresAt != nil {
+		// Use unsafe version to allow loading expired invoices from database
+		return invoice.NewInvoiceExpirationWithTimeUnsafe(*expiresAt)
+	}
+	return invoice.NewInvoiceExpiration(30 * time.Minute)
+}
+
+// buildInvoice creates the invoice entity.
+func (m *InvoiceMapper) buildInvoice(
+	model *InvoiceModel,
+	items []*invoice.InvoiceItem,
+	pricing *invoice.InvoicePricing,
+	paymentAddress *shared.PaymentAddress,
+	exchangeRate *shared.ExchangeRate,
+	paymentTolerance *invoice.PaymentTolerance,
+	expiration *invoice.InvoiceExpiration,
+) (*invoice.Invoice, error) {
+	return invoice.NewInvoice(
 		model.ID,
 		model.MerchantID,
 		model.Title,
@@ -133,10 +206,10 @@ func (m *InvoiceMapper) ToDomain(model *InvoiceModel) (*invoice.Invoice, error) 
 		expiration,
 		nil, // metadata
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create invoice: %w", err)
-	}
+}
 
+// setInvoiceProperties sets additional properties on the invoice.
+func (m *InvoiceMapper) setInvoiceProperties(inv *invoice.Invoice, model *InvoiceModel) {
 	// Set customer ID if present
 	if model.CustomerID != nil {
 		inv.SetCustomerID(*model.CustomerID)
@@ -147,12 +220,9 @@ func (m *InvoiceMapper) ToDomain(model *InvoiceModel) (*invoice.Invoice, error) 
 	inv.SetStatus(status)
 
 	// Set paid at if present
-	if model.PaidAt != nil {
-		// Note: This would require a method to set paidAt, which might not exist
-		// For now, we'll skip this as the domain model handles it internally
-	}
-
-	return inv, nil
+	// Note: This would require a method to set paidAt, which might not exist
+	// For now, we'll skip this as the domain model handles it internally
+	_ = model.PaidAt
 }
 
 // ToModel converts a domain entity to a database model.
@@ -235,8 +305,8 @@ func (m *InvoiceMapper) ToModel(inv *invoice.Invoice) *InvoiceModel {
 // ToDomainSlice converts multiple database models to domain entities.
 func (m *InvoiceMapper) ToDomainSlice(models []InvoiceModel) ([]*invoice.Invoice, error) {
 	invoices := make([]*invoice.Invoice, len(models))
-	for i, model := range models {
-		inv, err := m.ToDomain(&model)
+	for i := range models {
+		inv, err := m.ToDomain(&models[i])
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert model %d: %w", i, err)
 		}
@@ -341,7 +411,13 @@ func (m *InvoiceMapper) DeserializeExchangeRate(jsonStr string) (*shared.Exchang
 
 	// Create exchange rate with calculated duration
 	duration := expiresAt.Sub(lockedAt)
-	exchangeRate, err := shared.NewExchangeRate(rate, shared.Currency(from), shared.CryptoCurrency(to), source, duration)
+	exchangeRate, err := shared.NewExchangeRate(
+		rate,
+		shared.Currency(from),
+		shared.CryptoCurrency(to),
+		source,
+		duration,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create exchange rate: %w", err)
 	}

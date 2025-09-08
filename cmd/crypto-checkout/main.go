@@ -2,10 +2,9 @@
 package main
 
 import (
+	"crypto-checkout/internal/application"
 	"flag"
 	"os"
-
-	"crypto-checkout/internal/application"
 )
 
 func main() {

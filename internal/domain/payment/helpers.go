@@ -1,9 +1,8 @@
 package payment
 
 import (
-	"time"
-
 	"crypto-checkout/internal/domain/shared"
+	"time"
 )
 
 // CalculateRequiredConfirmations calculates the required confirmations based on amount and network.
@@ -54,7 +53,10 @@ func IsPaymentExpired(payment *Payment, maxAge time.Duration) bool {
 }
 
 // CalculateNetworkFee estimates the network fee based on network and transaction size.
-func CalculateNetworkFee(network shared.BlockchainNetwork, estimatedSize int) (*shared.Money, shared.CryptoCurrency, error) {
+func CalculateNetworkFee(
+	network shared.BlockchainNetwork,
+	estimatedSize int,
+) (*shared.Money, shared.CryptoCurrency, error) {
 	// This is a simplified implementation - in reality, this would query current network conditions
 
 	switch network {

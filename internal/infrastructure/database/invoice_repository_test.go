@@ -2,14 +2,13 @@ package database_test
 
 import (
 	"context"
-	"fmt"
-	"testing"
-	"time"
-
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/shared"
 	"crypto-checkout/internal/infrastructure/database"
 	"crypto-checkout/pkg/config"
+	"fmt"
+	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -45,11 +44,17 @@ func createTestInvoiceWithID(t *testing.T, id string) *invoice.Invoice {
 	pricing, _ := invoice.NewInvoicePricing(subtotal, tax, total)
 
 	paymentAddress, _ := shared.NewPaymentAddress("TTestAddress123456789012345678901234567890", shared.NetworkTron)
-	exchangeRate, _ := shared.NewExchangeRate("1.0", shared.CurrencyUSD, shared.CryptoCurrencyUSDT, "default", 30*time.Minute)
+	exchangeRate, _ := shared.NewExchangeRate(
+		"1.0",
+		shared.CurrencyUSD,
+		shared.CryptoCurrencyUSDT,
+		"default",
+		30*time.Minute,
+	)
 	paymentTolerance, _ := invoice.NewPaymentTolerance("0.01", "1.0", invoice.OverpaymentActionCredit)
 	expiration := invoice.NewInvoiceExpiration(30 * time.Minute)
 
-inv, err := invoice.NewInvoice(
+	inv, err := invoice.NewInvoice(
 		id,
 		"test-merchant-id",
 		"Test Invoice",
@@ -64,7 +69,7 @@ inv, err := invoice.NewInvoice(
 		nil,
 	)
 
-require.NoError(t, err)
+	require.NoError(t, err)
 	return inv
 }
 
@@ -233,7 +238,10 @@ func TestInvoiceRepository(t *testing.T) {
 			repo := database.NewInvoiceRepository(db)
 			ctx := context.Background()
 
-			paymentAddress, _ := shared.NewPaymentAddress("TNonExistentAddress123456789012345678901234567890", shared.NetworkTron)
+			paymentAddress, _ := shared.NewPaymentAddress(
+				"TNonExistentAddress123456789012345678901234567890",
+				shared.NetworkTron,
+			)
 
 			found, err := repo.FindByPaymentAddress(ctx, paymentAddress)
 			require.Error(t, err)

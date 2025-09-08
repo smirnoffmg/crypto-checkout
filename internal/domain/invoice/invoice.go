@@ -1,9 +1,8 @@
 package invoice
 
 import (
-	"time"
-
 	"crypto-checkout/internal/domain/shared"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -32,18 +31,18 @@ type Invoice struct {
 
 // InvoiceValidation represents the validation structure for Invoice creation.
 type InvoiceValidation struct {
-	ID               string                 `validate:"required,min=1" json:"id"`
-	MerchantID       string                 `validate:"required,min=1" json:"merchant_id"`
-	Title            string                 `validate:"required,min=1" json:"title"`
-	Description      string                 `json:"description"`
+	ID               string                 `validate:"required,min=1"      json:"id"`
+	MerchantID       string                 `validate:"required,min=1"      json:"merchant_id"`
+	Title            string                 `validate:"required,min=1"      json:"title"`
+	Description      string                 `                               json:"description"`
 	Items            []*InvoiceItem         `validate:"required,min=1,dive" json:"items"`
-	Pricing          *InvoicePricing        `validate:"required" json:"pricing"`
-	CryptoCurrency   shared.CryptoCurrency  `validate:"required" json:"crypto_currency"`
-	PaymentAddress   *shared.PaymentAddress `validate:"required" json:"payment_address"`
-	ExchangeRate     *shared.ExchangeRate   `validate:"required" json:"exchange_rate"`
-	PaymentTolerance *PaymentTolerance      `validate:"required" json:"payment_tolerance"`
-	Expiration       *InvoiceExpiration     `validate:"required" json:"expiration"`
-	Metadata         map[string]interface{} `json:"metadata"`
+	Pricing          *InvoicePricing        `validate:"required"            json:"pricing"`
+	CryptoCurrency   shared.CryptoCurrency  `validate:"required"            json:"crypto_currency"`
+	PaymentAddress   *shared.PaymentAddress `validate:"required"            json:"payment_address"`
+	ExchangeRate     *shared.ExchangeRate   `validate:"required"            json:"exchange_rate"`
+	PaymentTolerance *PaymentTolerance      `validate:"required"            json:"payment_tolerance"`
+	Expiration       *InvoiceExpiration     `validate:"required"            json:"expiration"`
+	Metadata         map[string]interface{} `                               json:"metadata"`
 }
 
 // NewInvoice creates a new Invoice with validation using go-playground/validator.

@@ -1,9 +1,8 @@
 package payment_test
 
 import (
-	"testing"
-
 	"crypto-checkout/internal/domain/payment"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 )

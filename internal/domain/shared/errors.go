@@ -126,14 +126,14 @@ const (
 // Error constructors for common patterns
 
 // NewValidationError creates a validation error.
-func NewValidationError(field string, reason string) *DomainError {
+func NewValidationError(field, reason string) *DomainError {
 	return NewDomainError(ErrCodeValidationFailed, "validation failed", nil).
 		WithDetail("field", field).
 		WithDetail("reason", reason)
 }
 
 // NewNotFoundError creates a not found error.
-func NewNotFoundError(resource string, id string) *DomainError {
+func NewNotFoundError(resource, id string) *DomainError {
 	return NewDomainError(ErrCodeNotFound, resource+" not found", nil).
 		WithDetail("resource", resource).
 		WithDetail("id", id)
@@ -147,7 +147,7 @@ func NewInvalidTransitionError(from, to string) *DomainError {
 }
 
 // NewBusinessRuleViolationError creates a business rule violation error.
-func NewBusinessRuleViolationError(rule string, reason string) *DomainError {
+func NewBusinessRuleViolationError(rule, reason string) *DomainError {
 	return NewDomainError(ErrCodeBusinessRuleViolation, "business rule violation", nil).
 		WithDetail("rule", rule).
 		WithDetail("reason", reason)
@@ -175,7 +175,7 @@ func NewExcessiveAmountError(limit, provided string) *DomainError {
 }
 
 // NewTerminalStateError creates a terminal state error.
-func NewTerminalStateError(state string, action string) *DomainError {
+func NewTerminalStateError(state, action string) *DomainError {
 	return NewDomainError(ErrCodeTerminalState, "cannot perform action in terminal state", nil).
 		WithDetail("state", state).
 		WithDetail("action", action)

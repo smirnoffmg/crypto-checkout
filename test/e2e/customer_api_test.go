@@ -2,12 +2,11 @@ package e2e_test
 
 import (
 	"bytes"
+	"crypto-checkout/test/testutil"
 	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
-
-	"crypto-checkout/test/testutil"
 
 	"github.com/stretchr/testify/require"
 )

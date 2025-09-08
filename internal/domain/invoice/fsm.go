@@ -16,8 +16,22 @@ type InvoiceFSM struct {
 
 // NewInvoiceFSM creates a new invoice finite state machine.
 func NewInvoiceFSM(invoice *Invoice) *InvoiceFSM {
-	// Define events and their transitions
-	events := fsm.Events{
+	events := createInvoiceEvents()
+	callbacks := createInvoiceCallbacks()
+
+	// Create the FSM with the initial state
+	initialState := invoice.Status().String()
+	fsmInstance := fsm.NewFSM(initialState, events, callbacks)
+
+	return &InvoiceFSM{
+		fsm:     fsmInstance,
+		invoice: invoice,
+	}
+}
+
+// createInvoiceEvents defines the events and their transitions for invoice FSM.
+func createInvoiceEvents() fsm.Events {
+	return fsm.Events{
 		// From created state
 		{Name: "view", Src: []string{"created"}, Dst: "pending"},
 		{Name: "expire", Src: []string{"created"}, Dst: "expired"},
@@ -40,38 +54,40 @@ func NewInvoiceFSM(invoice *Invoice) *InvoiceFSM {
 		// From paid state
 		{Name: "refund", Src: []string{"paid"}, Dst: "refunded"},
 	}
+}
 
-	// Define callbacks for guard conditions and side effects
-	callbacks := fsm.Callbacks{
-		"before_expire": func(ctx context.Context, e *fsm.Event) {
+// createInvoiceCallbacks defines the callbacks for guard conditions and side effects.
+func createInvoiceCallbacks() fsm.Callbacks {
+	return fsm.Callbacks{
+		"before_expire": func(_ context.Context, e *fsm.Event) {
 			if len(e.Args) > 0 {
 				if err := canExpire(e.Args[0].(*Invoice)); err != nil {
 					e.Cancel(err)
 				}
 			}
 		},
-		"before_cancel": func(ctx context.Context, e *fsm.Event) {
+		"before_cancel": func(_ context.Context, e *fsm.Event) {
 			if len(e.Args) > 0 {
 				if err := canCancel(e.Args[0].(*Invoice)); err != nil {
 					e.Cancel(err)
 				}
 			}
 		},
-		"before_confirm": func(ctx context.Context, e *fsm.Event) {
+		"before_confirm": func(_ context.Context, e *fsm.Event) {
 			if len(e.Args) > 0 {
 				if err := canMarkPaid(e.Args[0].(*Invoice)); err != nil {
 					e.Cancel(err)
 				}
 			}
 		},
-		"before_refund": func(ctx context.Context, e *fsm.Event) {
+		"before_refund": func(_ context.Context, e *fsm.Event) {
 			if len(e.Args) > 0 {
 				if err := canRefund(e.Args[0].(*Invoice)); err != nil {
 					e.Cancel(err)
 				}
 			}
 		},
-		"enter_paid": func(ctx context.Context, e *fsm.Event) {
+		"enter_paid": func(_ context.Context, e *fsm.Event) {
 			if len(e.Args) > 0 {
 				invoice := e.Args[0].(*Invoice)
 				now := time.Now().UTC()
@@ -83,7 +99,7 @@ func NewInvoiceFSM(invoice *Invoice) *InvoiceFSM {
 				invoice.updatedAt = now
 			}
 		},
-		"enter_state": func(ctx context.Context, e *fsm.Event) {
+		"enter_state": func(_ context.Context, e *fsm.Event) {
 			if len(e.Args) > 0 {
 				invoice := e.Args[0].(*Invoice)
 				// Update invoice status to match FSM state
@@ -91,15 +107,6 @@ func NewInvoiceFSM(invoice *Invoice) *InvoiceFSM {
 				invoice.updatedAt = time.Now().UTC()
 			}
 		},
-	}
-
-	// Create the FSM with the initial state
-	initialState := invoice.Status().String()
-	fsmInstance := fsm.NewFSM(initialState, events, callbacks)
-
-	return &InvoiceFSM{
-		fsm:     fsmInstance,
-		invoice: invoice,
 	}
 }
 
@@ -325,7 +332,12 @@ type StatusTransition struct {
 }
 
 // NewStatusTransition creates a new status transition record.
-func NewStatusTransition(from, to InvoiceStatus, reason string, actor Actor, metadata map[string]interface{}) *StatusTransition {
+func NewStatusTransition(
+	from, to InvoiceStatus,
+	reason string,
+	actor Actor,
+	metadata map[string]interface{},
+) *StatusTransition {
 	return &StatusTransition{
 		FromStatus: from,
 		ToStatus:   to,
@@ -362,17 +374,22 @@ type InvoiceStateMachine struct {
 
 // NewInvoiceStateMachine creates a new invoice state machine for a specific invoice.
 func NewInvoiceStateMachine(invoice *Invoice) *InvoiceStateMachine {
-	fsm := NewInvoiceFSM(invoice)
+	fsmInstance := NewInvoiceFSM(invoice)
 
 	return &InvoiceStateMachine{
-		fsm:     fsm,
+		fsm:     fsmInstance,
 		invoice: invoice,
 		history: make([]StatusTransition, 0),
 	}
 }
 
 // TransitionTo attempts to transition the invoice to a new status.
-func (ism *InvoiceStateMachine) TransitionTo(target InvoiceStatus, reason string, actor Actor, metadata map[string]interface{}) error {
+func (ism *InvoiceStateMachine) TransitionTo(
+	target InvoiceStatus,
+	reason string,
+	actor Actor,
+	metadata map[string]interface{},
+) error {
 	fromStatus := ism.fsm.CurrentStatus()
 
 	if err := ism.fsm.TransitionTo(target); err != nil {
@@ -391,7 +408,13 @@ func (ism *InvoiceStateMachine) TransitionTo(target InvoiceStatus, reason string
 }
 
 // Event triggers a specific event in the state machine.
-func (ism *InvoiceStateMachine) Event(ctx context.Context, event string, reason string, actor Actor, metadata map[string]interface{}) error {
+func (ism *InvoiceStateMachine) Event(
+	ctx context.Context,
+	event string,
+	reason string,
+	actor Actor,
+	metadata map[string]interface{},
+) error {
 	fromStatus := ism.fsm.CurrentStatus()
 
 	if err := ism.fsm.Event(ctx, event); err != nil {

@@ -1,9 +1,8 @@
 package shared_test
 
 import (
-	"testing"
-
 	"crypto-checkout/internal/domain/shared"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 )

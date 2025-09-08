@@ -1,9 +1,8 @@
 package payment
 
 import (
-	"time"
-
 	"crypto-checkout/internal/domain/shared"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -76,7 +75,11 @@ func NewPayment(
 				case "TransactionHash":
 					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "transaction hash cannot be nil", nil)
 				case "RequiredConfirmations":
-					return nil, NewPaymentError(shared.ErrCodeValidationFailed, "required confirmations cannot be negative", nil)
+					return nil, NewPaymentError(
+						shared.ErrCodeValidationFailed,
+						"required confirmations cannot be negative",
+						nil,
+					)
 				}
 			}
 		}

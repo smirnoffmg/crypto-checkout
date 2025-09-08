@@ -1,17 +1,18 @@
 package payment
 
 import (
+	"crypto-checkout/internal/domain/shared"
 	"errors"
 	"fmt"
 	"time"
-
-	"crypto-checkout/internal/domain/shared"
 )
 
 // Use shared value objects
-type TransactionHash = shared.TransactionHash
-type PaymentAddress = shared.PaymentAddress
-type ConfirmationCount = shared.ConfirmationCount
+type (
+	TransactionHash   = shared.TransactionHash
+	PaymentAddress    = shared.PaymentAddress
+	ConfirmationCount = shared.ConfirmationCount
+)
 
 // NewTransactionHash creates a new transaction hash using shared implementation.
 func NewTransactionHash(hash string) (*TransactionHash, error) {
@@ -221,11 +222,12 @@ func (pt *PaymentTimestamps) Equals(other *PaymentTimestamps) bool {
 
 	// Compare confirmedAt pointers
 	var confirmedAtEqual bool
-	if pt.confirmedAt == nil && other.confirmedAt == nil {
+	switch {
+	case pt.confirmedAt == nil && other.confirmedAt == nil:
 		confirmedAtEqual = true
-	} else if pt.confirmedAt != nil && other.confirmedAt != nil {
+	case pt.confirmedAt != nil && other.confirmedAt != nil:
 		confirmedAtEqual = pt.confirmedAt.Equal(*other.confirmedAt)
-	} else {
+	default:
 		confirmedAtEqual = false
 	}
 

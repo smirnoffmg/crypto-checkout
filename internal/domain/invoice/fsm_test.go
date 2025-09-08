@@ -2,11 +2,10 @@ package invoice_test
 
 import (
 	"context"
-	"testing"
-	"time"
-
 	"crypto-checkout/internal/domain/invoice"
 	"crypto-checkout/internal/domain/shared"
+	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -475,7 +474,13 @@ func TestInvoiceStateMachine(t *testing.T) {
 
 func TestStatusTransition(t *testing.T) {
 	t.Run("NewStatusTransition", func(t *testing.T) {
-		transition := invoice.NewStatusTransition(invoice.StatusCreated, invoice.StatusPending, "test reason", invoice.ActorCustomer, nil)
+		transition := invoice.NewStatusTransition(
+			invoice.StatusCreated,
+			invoice.StatusPending,
+			"test reason",
+			invoice.ActorCustomer,
+			nil,
+		)
 
 		require.Equal(t, invoice.StatusCreated, transition.FromStatus)
 		require.Equal(t, invoice.StatusPending, transition.ToStatus)
@@ -486,7 +491,13 @@ func TestStatusTransition(t *testing.T) {
 	})
 
 	t.Run("String", func(t *testing.T) {
-		transition := invoice.NewStatusTransition(invoice.StatusCreated, invoice.StatusPending, "test reason", invoice.ActorCustomer, nil)
+		transition := invoice.NewStatusTransition(
+			invoice.StatusCreated,
+			invoice.StatusPending,
+			"test reason",
+			invoice.ActorCustomer,
+			nil,
+		)
 
 		expected := "created -> pending (test reason)"
 		require.Equal(t, expected, transition.String())
@@ -511,7 +522,13 @@ func TestStatusTransition(t *testing.T) {
 			Actor:      invoice.ActorCustomer,
 			Metadata:   nil,
 		}
-		transition3 := invoice.NewStatusTransition(invoice.StatusPending, invoice.StatusPaid, "different reason", invoice.ActorSystem, nil)
+		transition3 := invoice.NewStatusTransition(
+			invoice.StatusPending,
+			invoice.StatusPaid,
+			"different reason",
+			invoice.ActorSystem,
+			nil,
+		)
 
 		require.True(t, transition1.Equals(transition2))
 		require.False(t, transition1.Equals(transition3))
@@ -590,7 +607,13 @@ func createTestInvoice() *invoice.Invoice {
 	paymentAddress, _ := shared.NewPaymentAddress("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", shared.NetworkBitcoin)
 
 	// Create test exchange rate
-	exchangeRate, _ := shared.NewExchangeRate("50000.00", shared.CurrencyUSD, shared.CryptoCurrencyBTC, "test-source", 1*time.Hour)
+	exchangeRate, _ := shared.NewExchangeRate(
+		"50000.00",
+		shared.CurrencyUSD,
+		shared.CryptoCurrencyBTC,
+		"test-source",
+		1*time.Hour,
+	)
 
 	// Create test payment tolerance
 	tolerance, _ := invoice.NewPaymentTolerance("0.95", "1.05", invoice.OverpaymentActionRefund)

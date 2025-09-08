@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"bytes"
+	"crypto-checkout/internal/presentation/web"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,8 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-
-	"crypto-checkout/internal/presentation/web"
 )
 
 func TestInvoiceIntegration(t *testing.T) {
@@ -63,7 +62,7 @@ func TestInvoiceIntegration(t *testing.T) {
 		require.Equal(t, "created", createResponse.Status)
 
 		// Step 2: Get the invoice to verify it was created
-		getReq := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+invoiceID, nil)
+		getReq := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+invoiceID, http.NoBody)
 		getReq.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		getW := httptest.NewRecorder()
@@ -86,7 +85,11 @@ func TestInvoiceIntegration(t *testing.T) {
 		cancelBody, err := json.Marshal(cancelReq)
 		require.NoError(t, err)
 
-		cancelHTTPReq := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(cancelBody))
+		cancelHTTPReq := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(cancelBody),
+		)
 		cancelHTTPReq.Header.Set("Content-Type", "application/json")
 		cancelHTTPReq.Header.Set("Authorization", "Bearer sk_live_test123")
 
@@ -105,7 +108,7 @@ func TestInvoiceIntegration(t *testing.T) {
 		require.NotEmpty(t, cancelResponse.CancelledAt)
 
 		// Step 4: Verify the invoice is cancelled by getting it again
-		getReq2 := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+invoiceID, nil)
+		getReq2 := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+invoiceID, http.NoBody)
 		getReq2.Header.Set("Authorization", "Bearer sk_live_test123")
 
 		getW2 := httptest.NewRecorder()
@@ -131,7 +134,11 @@ func TestInvoiceIntegration(t *testing.T) {
 		requestBody, err := json.Marshal(request)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/invoices/"+invoiceID+"/cancel", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/invoices/"+invoiceID+"/cancel",
+			bytes.NewBuffer(requestBody),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer sk_live_test123")
 
